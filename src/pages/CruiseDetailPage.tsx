@@ -1,34 +1,22 @@
 import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom"; // Thêm useNavigate
+import { useParams, useNavigate } from "react-router-dom"; 
 import { Star, MapPin, Clock, ShieldCheck, Check, Anchor, Info, Calendar as CalIcon, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 
+// 1. IMPORT TRỰC TIẾP BIẾN ECHO (Lưu ý: Chỉnh lại đường dẫn "../echo" nếu file echo.ts của bạn nằm ở chỗ khác)
+import { echo } from "../echo"; 
+
 export function CruiseDetailPage() {
   const { id } = useParams();
-  const navigate = useNavigate(); // Hook để điều hướng thủ công
+  const navigate = useNavigate(); 
   
   const [cruise, setCruise] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  // LOGIC KIỂM TRA ĐĂNG NHẬP KHI BẤM ĐẶT PHÒNG
-  const handleBooking = (cabinId: number) => {
-  // Giả sử bạn lưu trạng thái đăng nhập trong localStorage hoặc Context
-  const token = localStorage.getItem('token'); 
-
-  if (!token) {
-    // Nếu chưa đăng nhập, đá sang trang Login kèm theo "vết tích" để quay lại
-    alert("Vui lòng đăng nhập để thực hiện đặt phòng!");
-    navigate(`/login?redirect=/checkout?cruise=${id}&cabin=${cabinId}`);
-    return;
-  }
-
-  // Nếu đã đăng nhập, cho đi tiếp sang trang Checkout
-  navigate(`/checkout?cruise=${id}&cabin=${cabinId}`);
-};
-  // 2. Gọi API lấy dữ liệu chi tiết tàu
+  // GỌI API LẤY DỮ LIỆU CHI TIẾT TÀU
   useEffect(() => {
     axios.get(`http://localhost/api/cruises/${id}`)
       .then(response => {
@@ -41,11 +29,59 @@ export function CruiseDetailPage() {
       });
   }, [id]);
 
-  // Hiệu ứng Loading 5 sao
+  // 2. LOGIC LẮNG NGHE WEBSOCKET (ĐÃ FIX LỖI UNDEFINED)
+  useEffect(() => {
+    if (!cruise) return;
+
+    // Kiểm tra an toàn: Nếu file echo.ts chưa load kịp thì báo lỗi nhẹ thay vì sập web
+    if (!echo) {
+      console.warn("Chưa kết nối được hệ thống Real-time!");
+      return;
+    }
+
+    // Dùng trực tiếp biến 'echo' để lắng nghe kênh 'rooms'
+    const channel = echo.channel('rooms')
+      .listen('.RoomReleased', (e: any) => {
+        console.log(" Nhận tín hiệu nhả phòng:", e);
+        
+        // Cập nhật lại số lượng phòng trống ngay trên giao diện
+        setCruise((prevCruise: any) => {
+          if (!prevCruise) return prevCruise;
+          
+          return {
+            ...prevCruise,
+            cabin_classes: prevCruise.cabin_classes.map((cabin: any) => 
+              cabin.id === e.cabinClassId 
+                ? { ...cabin, available_rooms: e.availableRooms } 
+                : cabin
+            )
+          };
+        });
+      });
+
+    // Cleanup: Rời khỏi kênh âm thanh khi khách chuyển sang trang khác
+    return () => {
+      echo.leave('rooms');
+    };
+  }, [cruise]); 
+
+  // LOGIC ĐẶT PHÒNG VÀ KIỂM TRA ĐĂNG NHẬP
+  const handleBooking = (cabinId: number) => {
+    const token = localStorage.getItem('token'); 
+
+    if (!token) {
+      alert("Vui lòng đăng nhập để thực hiện đặt phòng!");
+      navigate(`/login?redirect=/checkout?cruise=${id}&cabin=${cabinId}`);
+      return;
+    }
+
+    navigate(`/checkout?cruise=${id}&cabin=${cabinId}`);
+  };
+
+  // HIỆU ỨNG TẢI TRANG
   if (loading) return <div className="p-20 text-center text-xl font-serif text-slate-800">Đang chuẩn bị hành trình 5 sao...</div>;
   if (!cruise) return <div className="p-20 text-center text-xl text-red-500">Không tìm thấy du thuyền.</div>;
 
-  // Tính giá thấp nhất từ các hạng phòng để hiển thị ở cột phải
   const basePrice = cruise.cabin_classes && cruise.cabin_classes.length > 0 
     ? Math.min(...cruise.cabin_classes.map((c: any) => c.price)) 
     : 0;
@@ -54,7 +90,6 @@ export function CruiseDetailPage() {
     <div className="bg-slate-50 min-h-screen">
       {/* Hero Header */}
       <div className="relative h-[50vh] min-h-[400px] w-full bg-slate-900">
-        {/* Tạm dùng ảnh tĩnh trong thư mục public của bạn */}
         <img 
           src="/images/tau-1.jpg" 
           alt={cruise.name} 
@@ -84,10 +119,7 @@ export function CruiseDetailPage() {
         </div>
       </div>
 
-      {/* Main Content & Sidebar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 flex flex-col lg:flex-row gap-12">
-        
-        {/* Left Column - Details */}
         <div className="lg:w-2/3">
           {/* Tabs Navigation */}
           <div className="flex overflow-x-auto gap-8 border-b border-slate-200 mb-8 pb-2 sticky top-20 bg-slate-50 z-20">
@@ -112,16 +144,13 @@ export function CruiseDetailPage() {
             ))}
           </div>
 
-          {/* Tab Content */}
           <div className="min-h-[400px]">
             {activeTab === 'overview' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <section>
                   <h3 className="text-2xl font-serif font-bold text-slate-900 mb-6">Thư viện hình ảnh</h3>
-                  
                   {cruise.images && cruise.images.length > 0 ? (
                     <div className="flex flex-col gap-4">
-                      {/* 1. Ảnh chính (To, hiển thị ảnh đang được chọn) */}
                       <div className="w-full h-[400px] md:h-[500px] rounded-2xl overflow-hidden shadow-md">
                         <img 
                           src={cruise.images[activeImageIndex]?.image_url} 
@@ -130,8 +159,6 @@ export function CruiseDetailPage() {
                           onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1599640842225-85d111c60e6b?q=80&w=1080&auto=format&fit=crop"; }}
                         />
                       </div>
-                      
-                      {/* 2. Danh sách ảnh nhỏ (Thumbnails) nằm ngang */}
                       <div className="flex overflow-x-auto gap-4 pb-2 snap-x hide-scrollbar">
                         {cruise.images.map((img: any, index: number) => (
                           <button 
@@ -143,36 +170,81 @@ export function CruiseDetailPage() {
                                 : 'border-transparent opacity-50 hover:opacity-100'
                             }`}
                           >
-                            <img 
-                              src={img.image_url} 
-                              alt={`Thumbnail ${index}`} 
-                              className="w-full h-full object-cover"
-                              onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1599640842225-85d111c60e6b?q=80&w=1080&auto=format&fit=crop"; }}
-                            />
+                            <img src={img.image_url} alt={`Thumbnail ${index}`} className="w-full h-full object-cover" />
                           </button>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <p className="text-slate-500 italic p-8 bg-white rounded-xl border border-slate-100 text-center">
-                      Đang cập nhật hình ảnh...
-                    </p>
+                    <p className="text-slate-500 italic text-center">Đang cập nhật hình ảnh...</p>
                   )}
                 </section>
                 <section>
                   <h3 className="text-2xl font-serif font-bold text-slate-900 mb-6">Dịch vụ & Tiện ích tiêu chuẩn</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {/* Map dữ liệu từ bảng amenities */}
                     {cruise.amenities && cruise.amenities.map((fac: any) => (
                       <div key={fac.id} className="flex items-center gap-3 bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
-                          <Check className="w-4 h-4" />
-                        </div>
+                        <Check className="w-4 h-4 text-green-500" />
                         <span className="font-medium text-slate-800">{fac.name}</span>
                       </div>
                     ))}
                   </div>
                 </section>
+              </motion.div>
+            )}
+
+            {activeTab === 'cabins' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <h3 className="text-2xl font-serif font-bold text-slate-900 mb-6">Chọn không gian nghỉ dưỡng</h3>
+                <div className="grid gap-6">
+                  {cruise.cabin_classes.map((cabin: any) => (
+                    <div key={cabin.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 flex flex-col md:flex-row">
+                      <div className="w-full md:w-1/3 h-48 md:h-auto relative overflow-hidden">
+                        <img 
+                          src={cabin.image_url || "https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=1080&auto=format&fit=crop"} 
+                          alt={cabin.name} 
+                          className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
+                        />
+                      </div>
+                      <div className="p-6 flex-1 flex flex-col">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="text-xl font-bold font-serif text-slate-900 mb-1">{cabin.name}</h4>
+                            <div className="text-sm text-slate-500 flex items-center gap-2">
+                              <CalIcon className="w-4 h-4" /> Tiêu chuẩn: {cabin.capacity} khách
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-2xl font-bold text-slate-900">
+                              {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cabin.price)}
+                            </span>
+                            <span className="text-xs text-slate-500 block uppercase">/ đêm</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${cabin.available_rooms > 0 ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                            <span className={`text-sm font-bold ${cabin.available_rooms > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                              {cabin.available_rooms > 0 ? `Còn ${cabin.available_rooms} phòng` : 'Hết phòng'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleBooking(cabin.id)}
+                            disabled={cabin.available_rooms === 0}
+                            className={`flex-1 py-3 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                              cabin.available_rooms > 0 
+                                ? 'bg-slate-900 text-white hover:bg-amber-500 hover:text-slate-900' 
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {cabin.available_rooms > 0 ? (<>Đặt Phòng <Anchor className="w-4 h-4" /></>) : 'Hết Phòng'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
 
@@ -183,7 +255,6 @@ export function CruiseDetailPage() {
                 {cruise.itineraries && cruise.itineraries.length > 0 ? (
                   <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                     {cruise.itineraries.map((day: any) => {
-                      // Xử lý chuỗi JSON activities từ Database
                       const actList = typeof day.activities === 'string' ? JSON.parse(day.activities) : (day.activities || []);
                       
                       return (
@@ -214,79 +285,6 @@ export function CruiseDetailPage() {
               </motion.div>
             )}
 
-            {activeTab === 'cabins' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-                <h3 className="text-2xl font-serif font-bold text-slate-900 mb-6">Chọn không gian nghỉ dưỡng</h3>
-                {cruise.cabin_classes && cruise.cabin_classes.length > 0 ? (
-                  <div className="grid gap-6">
-                    {/* Map dữ liệu từ bảng cabin_classes */}
-                    {cruise.cabin_classes.map((cabin: any) => (
-                      <div key={cabin.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 flex flex-col md:flex-row">
-                        <div className="w-full md:w-1/3 h-48 md:h-auto relative">
-                          <img 
-                            src={cabin.image_url || "https://images.unsplash.com/photo-1566665797739-1674de7a421a?q=80&w=1080&auto=format&fit=crop"} 
-                            alt={cabin.name} 
-                            className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" 
-                          />
-                          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-slate-900">
-                            HẠNG SANG
-                          </div>
-                        </div>
-                        <div className="p-6 flex-1 flex flex-col">
-                          <div className="flex justify-between items-start mb-4">
-                            <div>
-                              <h4 className="text-xl font-bold font-serif text-slate-900 mb-1">{cabin.name}</h4>
-                              <div className="text-sm text-slate-500 flex items-center gap-2">
-                                <CalIcon className="w-4 h-4" /> Tiêu chuẩn: {cabin.capacity} khách
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-2xl font-bold text-slate-900">
-                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(cabin.price)}
-                              </span>
-                              <span className="text-xs text-slate-500 block uppercase">/ đêm</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${cabin.available_rooms > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                              <span className={`text-sm font-semibold ${cabin.available_rooms > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                                {cabin.available_rooms > 0 ? `Còn ${cabin.available_rooms} phòng` : 'Hết phòng'}
-                              </span>
-                            </div>
-                            {/* Nút Đặt phòng: Truyền luôn ID của tàu và ID của hạng phòng */}
-                            <button
-                            onClick={() => handleBooking(cabin.id)}
-                            disabled={cabin.available_rooms === 0}
-                            className={` w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 shadow-lg
-    ${
-      cabin.available_rooms > 0 
-        ? 'bg-slate-900 text-white hover:bg-amber-500 hover:text-slate-900 hover:-translate-y-1 shadow-slate-900/20 active:scale-95' 
-        : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-    }
-  `}
->
-  {cabin.available_rooms > 0 ? (
-    <>
-      <span>Đặt Phòng Này</span>
-      <Anchor className="w-5 h-5" /> 
-    </>
-  ) : (
-    'Hết Phòng'
-  )}
-</button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-slate-500 italic p-8 bg-white rounded-xl border border-slate-100 text-center">Đang cập nhật hạng phòng.</p>
-                )}
-              </motion.div>
-            )}
-
             {activeTab === 'reviews' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <div className="space-y-6">
@@ -295,20 +293,16 @@ export function CruiseDetailPage() {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-lg">
-                            {/* Lấy chữ cái đầu tiên của tên */}
                             {review.user?.name ? review.user.name.charAt(0) : 'K'}
                           </div>
                           <div>
-                            {/* Tên khách hàng thật từ Database */}
                             <h5 className="font-bold text-slate-900">{review.user?.name || 'Khách hàng ẩn danh'}</h5>
-                            {/* Đổi định dạng ngày giờ chuẩn Việt Nam */}
                             <span className="text-xs text-slate-500">
                               {new Date(review.created_at).toLocaleDateString('vi-VN')}
                             </span>
                           </div>
                         </div>
                         <div className="flex">
-                          {/* In số sao khách chấm */}
                           {[...Array(5)].map((_, i) => (
                             <Star key={i} className={`w-4 h-4 ${i < review.rating ? 'text-amber-500 fill-amber-500' : 'text-slate-200'}`} />
                           ))}
@@ -320,17 +314,15 @@ export function CruiseDetailPage() {
                     <p className="text-slate-500 italic p-8 bg-white rounded-xl border border-slate-100 text-center">Chưa có đánh giá nào cho chuyến đi này.</p>
                   )}
                 </div>
-                <p className="text-slate-500 italic p-8 bg-white rounded-xl border border-slate-100 text-center">Chưa có đánh giá nào cho chuyến đi này.</p>
               </motion.div>
             )}
           </div>
         </div>
 
-        {/* Right Column - Booking Summary Card */}
+        {/* Right Sidebar Summary */}
         <div className="lg:w-1/3">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 sticky top-32">
             <h3 className="text-xl font-bold text-slate-900 mb-6 font-serif">Tóm tắt hành trình</h3>
-            
             <div className="space-y-4 mb-8">
               <div className="flex justify-between items-center pb-4 border-b border-slate-100">
                 <span className="text-slate-500 font-medium">Giá chỉ từ</span>
@@ -347,14 +339,12 @@ export function CruiseDetailPage() {
                 <span className="font-semibold text-slate-800">Cảng Tuần Châu</span>
               </div>
             </div>
-
             <button 
               onClick={() => setActiveTab('cabins')}
               className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-colors shadow-lg shadow-slate-900/20 flex items-center justify-center gap-2 group"
             >
               Xem Hạng Phòng <Anchor className="w-5 h-5 group-hover:rotate-12 transition-transform" />
             </button>
-
             <p className="text-xs text-center text-slate-500 mt-4">
               Cam kết giá tốt nhất. Phí dịch vụ cảng sẽ được tính ở bước thanh toán.
             </p>

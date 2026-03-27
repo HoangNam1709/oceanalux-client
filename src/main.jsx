@@ -15,9 +15,6 @@ axios.interceptors.request.use(config => {
   return Promise.reject(error);
 });
 
-// 2. Sau đó mới render App
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
+  <App />
 );
