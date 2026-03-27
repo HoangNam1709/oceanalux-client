@@ -4,7 +4,7 @@ import { SearchPage } from "./pages/SearchPage";
 import { CruiseDetailPage } from "./pages/CruiseDetailPage";
 import { BookingPage } from "./pages/BookingPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
@@ -22,7 +22,7 @@ function App() {
           <Route path="/cruise/:id" element={<CruiseDetailPage />} />
           <Route path="/book/:id" element={<BookingPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Route>
         
         {/* Các trang không dùng chung Layout (như Login, Admin) */}

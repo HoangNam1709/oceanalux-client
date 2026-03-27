@@ -79,8 +79,9 @@ export function Layout() {
                       <p className="text-sm font-bold text-slate-700 leading-none">{userData?.name}</p>
                     </div>
                     
+                    {/* ĐÃ FIX: Sửa to="/" thành to="/dashboard" */}
                     <Link
-                      to="/"
+                      to="/dashboard"
                       className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all border border-slate-200"
                     >
                       <User className="w-5 h-5" />
