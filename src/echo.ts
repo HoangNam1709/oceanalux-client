@@ -9,8 +9,8 @@ export const echo = new Echo({
     key: 'namocean_key', 
     wsHost: 'localhost',
     // FIX: Reverb mặc định dùng cổng 8080 trong Laravel Sail
-    wsPort: 8080, 
-    wssPort: 8080,
+    wsPort: 8082, 
+    wssPort: 8082,
     forceTLS: false,
     enabledTransports: ['ws'], // Chỉ sử dụng WebSocket 
     // Thêm cái này để tránh lỗi kết nối chập chờn

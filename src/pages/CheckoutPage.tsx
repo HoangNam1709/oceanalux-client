@@ -1,121 +1,170 @@
-  import React, { useState, useEffect } from "react";
-  import { useSearchParams, useNavigate } from "react-router-dom"; // Sửa lại thành react-router-dom
-  import { CreditCard, Wallet, Smartphone, ShieldCheck, Tag, Ticket, HelpCircle, CheckCircle, Clock } from "lucide-react";
-  import { motion } from "framer-motion"; // Sửa thành framer-motion
-  import axios from "axios";
+import React, { useState, useEffect } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { CreditCard, Wallet, ShieldCheck, Ticket, HelpCircle, CheckCircle, Clock } from "lucide-react";
+import { motion } from "framer-motion";
+import axios from "axios";
+import { echo } from "../echo"; // Đảm bảo đường dẫn này đúng với file cấu hình echo của bạn
 
-  export function CheckoutPage() {
+export function CheckoutPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    
-    // Lấy ID từ thanh địa chỉ
+
+    // 1. Khai báo các State
     const cruiseId = searchParams.get("cruise");
     const cabinId = searchParams.get("cabin");
-    
-    // State quản lý dữ liệu và UI
+
     const [cruiseData, setCruiseData] = useState<any>(null);
     const [cabinData, setCabinData] = useState<any>(null);
     const [bookingId, setBookingId] = useState<number | null>(null);
-    
+
     const [paymentMethod, setPaymentMethod] = useState("credit_card");
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-    
-    // State đếm ngược 15 phút (900 giây)
-    const [timeLeft, setTimeLeft] = useState(900);
 
-    // State các dịch vụ thêm
+    // Thời gian đếm ngược (Khởi tạo là null để đợi Server trả về số giây chính xác)
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
     const [addons, setAddons] = useState({
-      insurance: false,
-      wifi: false,
-      beverage: false
+        insurance: false,
+        wifi: false,
+        beverage: false
     });
 
-    // 1. GỌI API GIỮ PHÒNG NGAY KHI VÀO TRANG
-    useEffect(() => {
-      if (!cruiseId || !cabinId) return;
+    // 2. useEffect 1: GỌI API GIỮ PHÒNG (Khởi tạo đơn hàng)
+useEffect(() => {
+    if (!cruiseId || !cabinId) return;
 
-      // Lấy thông tin tàu trước để hiển thị
-      axios.get(`http://localhost/api/cruises/${cruiseId}`)
+    // Lấy data tàu để hiện giao diện
+    axios.get(`http://localhost/api/cruises/${cruiseId}`)
         .then(res => {
-          const cruise = res.data.data;
-          setCruiseData(cruise);
-          const cabin = cruise.cabin_classes.find((c: any) => c.id == cabinId);
-          setCabinData(cabin);
-          
-          // Gọi API Khóa phòng (Hold Room)
-          return axios.post('http://localhost/api/bookings/hold', {
-            schedule_id: 1, // Tạm fix cứng chuyến đi số 1 cho đồ án
-            cabin_class_id: cabinId,
-            quantity: 1,
-            customer_name: "Khách Hàng Trải Nghiệm", // Mặc định tạm
-            customer_email: "khach@gmail.com"
-          });
+            setCruiseData(res.data.data);
+            const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);
+            setCabinData(cabin);
+
+            // Gọi API hold (check trùng)
+            return axios.post('http://localhost/api/bookings/hold', {
+                schedule_id: 1,
+                cabin_class_id: cabinId,
+                quantity: 1
+            });
         })
         .then(holdRes => {
-          // Lưu lại ID đơn hàng để lát nữa gọi API thanh toán
-          setBookingId(holdRes.data.data.booking_id);
+            // Dù F5 bao nhiêu lần, Backend cũng trả về đúng 1 ID và số giây thực tế còn lại
+            setBookingId(holdRes.data.data.booking_id);
+            setTimeLeft(holdRes.data.data.remaining_seconds);
         })
-        .catch(error => {
-          alert(error.response?.data?.message || "Rất tiếc, phòng vừa được người khác đặt. Vui lòng chọn phòng khác!");
-          navigate(`/cruise/${cruiseId}`); // Đá về trang chi tiết
+        .catch(err => {
+            console.error(err);
+            navigate('/');
         });
-    }, [cruiseId, cabinId, navigate]);
+}, [cruiseId, cabinId, navigate]);
 
-    // 2. LOGIC ĐỒNG HỒ ĐẾM NGƯỢC
+    // 3. useEffect 2: LẮNG NGHE WEBSOCKET (Đuổi khách Real-time)
+  useEffect(() => {
+    if (!bookingId) return;
+
+    const channel = echo.channel(`booking.${bookingId}`);
+
+    // 1. Nghe sự kiện hết hạn (Quan trọng nhất)
+    channel.listen('.BookingExpired', () => {
+        alert("Thời gian giữ chỗ đã hết!");
+        navigate('/');
+    });
+
+    // 2. (Tùy chọn) Nghe sự kiện cập nhật thời gian từ Server để đồng bộ lại nếu bị lệch
+    channel.listen('.TimerUpdated', (e: { remainingSeconds: number }) => {
+        setTimeLeft(e.remainingSeconds);
+    });
+
+    return () => {
+        echo.leaveChannel(`booking.${bookingId}`);
+    };
+}, [bookingId]);
+
+    // 4. useEffect 3: LOGIC ĐẾM NGƯỢC (Hiển thị UI)
     useEffect(() => {
-      if (timeLeft <= 0) {
-        alert("Đã hết 15 phút giữ phòng! Đơn hàng của bạn đã bị hủy.");
-        navigate(`/cruise/${cruiseId}`);
-        return;
-      }
-      const timerId = setInterval(() => setTimeLeft(t => t - 1), 1000);
-      return () => clearInterval(timerId);
+        if (timeLeft === null) return;
+
+        if (timeLeft <= 0) {
+            alert("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
+            navigate(`/cruise/${cruiseId}`);
+            return;
+        }
+
+        const timerId = setInterval(() => {
+            setTimeLeft(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
+        }, 1000);
+
+        return () => clearInterval(timerId);
     }, [timeLeft, navigate, cruiseId]);
 
-    // Định dạng hiển thị phút:giây
-    const formatTime = (seconds: number) => {
-      const m = Math.floor(seconds / 60);
-      const s = seconds % 60;
-      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    // 5. Các hàm hỗ trợ và xử lý giao diện
+    const formatTime = (seconds: number | null) => {
+        if (seconds === null) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-    // Nếu đang tải dữ liệu thì hiện loading
-    if (!cruiseData || !cabinData) return <div className="p-20 text-center text-xl font-serif">Đang thiết lập kênh thanh toán bảo mật...</div>;
+    const handlePayment = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        // Kiểm tra an toàn xem đã có ID đơn hàng từ lúc hold phòng chưa
+        if (!bookingId) {
+            alert("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
+            return;
+        }
 
-    // Tính toán giá tiền (Chuyển sang VNĐ)
-    const guests = 2; 
-    const basePrice = cabinData.price;
-    const taxes = 500000 * guests; // Thuế phí cảng mẫu
-    
+        setIsProcessing(true);
+
+        try {
+            // Gửi request xuống PaymentController
+            const response = await axios.post('http://localhost/api/payment/create', {
+                booking_id: bookingId,
+                payment_method: paymentMethod, // 'vnpay' hoặc 'credit_card'
+                amount: totalAmount, // Lấy tổng tiền đã cộng Add-ons
+                addons: addons // (Tùy chọn) Truyền thêm addons nếu backend cần lưu lại
+            });
+
+            // Nếu thanh toán qua cổng ngoài (VNPAY, MoMo) backend sẽ trả về URL
+            if (response.data && response.data.checkoutUrl) {
+                // Chuyển hướng người dùng sang trang thanh toán của VNPAY
+                window.location.href = response.data.checkoutUrl;
+            } else {
+                // Nếu thanh toán thẻ nội bộ thành công ngay (hoặc code test trả về OK)
+                setIsProcessing(false);
+                setIsSuccess(true);
+                localStorage.removeItem(`pending_booking_${cruiseId}_${cabinId}`);
+                setTimeout(() => navigate('/dashboard'), 3000);
+            }
+        } catch (error: any) {
+            console.error('Lỗi thanh toán:', error);
+            alert(error.response?.data?.message || 'Giao dịch bị từ chối hoặc có lỗi hệ thống. Vui lòng thử lại!');
+            setIsProcessing(false);
+        }
+    };
+
+    // Tính toán giá tiền
+    const guests = 2;
+    const basePrice = cabinData?.price || 0;
+    const taxes = 500000 * guests;
     const addonPrices = {
-      insurance: 250000 * guests,
-      wifi: 150000 * 3, // 3 ngày
-      beverage: 800000 * guests
+        insurance: 250000 * guests,
+        wifi: 150000 * 3,
+        beverage: 800000 * guests
     };
 
     const totalAddons = 
-      (addons.insurance ? addonPrices.insurance : 0) +
-      (addons.wifi ? addonPrices.wifi : 0) +
-      (addons.beverage ? addonPrices.beverage : 0);
+        (addons.insurance ? addonPrices.insurance : 0) +
+        (addons.wifi ? addonPrices.wifi : 0) +
+        (addons.beverage ? addonPrices.beverage : 0);
 
     const totalAmount = basePrice + taxes + totalAddons;
 
-    // 3. XỬ LÝ THANH TOÁN (Giả lập)
-    const handlePayment = (e: React.FormEvent) => {
-      e.preventDefault();
-      setIsProcessing(true);
-      
-      // Ở đây sau này bạn sẽ gọi API update status thành 'confirmed'
-      setTimeout(() => {
-        setIsProcessing(false);
-        setIsSuccess(true);
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 3000);
-      }, 2000);
-    };
-
+    // Render Loading
+    if (!cruiseData || !cabinData) {
+        return <div className="p-20 text-center text-xl font-serif">Đang thiết lập kênh thanh toán bảo mật...</div>;
+    }
     if (isSuccess) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -267,6 +316,16 @@
                         <Wallet className="w-6 h-6 text-blue-600" /> <span className="font-bold text-slate-900">VNPAY (Quét mã QR / Thẻ nội địa)</span>
                       </div>
                     </div>
+                  </label>
+                  {/* Thanh toán tiền mặt (Chỉ dành cho Test) */}
+                  <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                   <div className="flex items-center gap-4">
+                    <input type="radio" name="payment" value="cash" checked={paymentMethod === 'cash'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-green-500" />
+                    <div className="flex items-center gap-3">
+                     <ShieldCheck className="w-6 h-6 text-green-600" /> 
+                     <span className="font-bold text-slate-900">Thanh toán tiền mặt (Test Mode - Auto Success)</span>
+                    </div>
+                   </div>
                   </label>
                 </div>
 
