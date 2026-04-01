@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { CreditCard, Wallet, ShieldCheck, Ticket, HelpCircle, CheckCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { echo } from "../echo"; // Đảm bảo đường dẫn này đúng với file cấu hình echo của bạn
+import { echo } from "../echo";
 
 export function CheckoutPage() {
     const [searchParams] = useSearchParams();
@@ -12,16 +12,17 @@ export function CheckoutPage() {
     // 1. Khai báo các State
     const cruiseId = searchParams.get("cruise");
     const cabinId = searchParams.get("cabin");
+    
+    // Lấy số khách từ URL (mặc định là 2 nếu không có)
+    const guests = Number(searchParams.get("guests")) || 2; 
 
     const [cruiseData, setCruiseData] = useState<any>(null);
     const [cabinData, setCabinData] = useState<any>(null);
     const [bookingId, setBookingId] = useState<number | null>(null);
 
-    const [paymentMethod, setPaymentMethod] = useState("credit_card");
+    const [paymentMethod, setPaymentMethod] = useState("vnpay");
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-
-    // Thời gian đếm ngược (Khởi tạo là null để đợi Server trả về số giây chính xác)
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
     const [addons, setAddons] = useState({
@@ -30,108 +31,114 @@ export function CheckoutPage() {
         beverage: false
     });
 
-    // 2. useEffect 1: GỌI API GIỮ PHÒNG (Khởi tạo đơn hàng)
-useEffect(() => {
-    if (!cruiseId || !cabinId) return;
+    // 2. TÍNH TOÁN GIÁ TIỀN (Sử dụng useMemo để tối ưu hiệu năng)
+    const { basePrice, taxes, addonPrices, totalAddons, totalAmount } = useMemo(() => {
+        // BẮT BUỘC ÉP KIỂU SỐ Ở ĐÂY ĐỂ TRÁNH LỖI NỐI CHUỖI
+        const base = Number(cabinData?.price) || 0; 
+        const taxAmount = 500000 * guests;
+        
+        const prices = {
+            insurance: 250000 * guests,
+            wifi: 150000 * 3, // Giả định hành trình 3 ngày
+            beverage: 800000 * guests
+        };
 
-    // Lấy data tàu để hiện giao diện
-    axios.get(`http://localhost/api/cruises/${cruiseId}`)
-        .then(res => {
-            setCruiseData(res.data.data);
-            const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);
-            setCabinData(cabin);
+        const totalAddon = 
+            (addons.insurance ? prices.insurance : 0) +
+            (addons.wifi ? prices.wifi : 0) +
+            (addons.beverage ? prices.beverage : 0);
 
-            // Gọi API hold (check trùng)
-            return axios.post('http://localhost/api/bookings/hold', {
-                schedule_id: 1,
-                cabin_class_id: cabinId,
-                quantity: 1
+        return {
+            basePrice: base,
+            taxes: taxAmount,
+            addonPrices: prices,
+            totalAddons: totalAddon,
+            totalAmount: base + taxAmount + totalAddon
+        };
+    }, [cabinData, addons, guests]);
+
+    // 3. useEffect 1: GỌI API GIỮ PHÒNG
+    useEffect(() => {
+        if (!cruiseId || !cabinId) return;
+
+        axios.get(`http://localhost/api/cruises/${cruiseId}`)
+            .then(res => {
+                setCruiseData(res.data.data);
+                const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);
+                setCabinData(cabin);
+
+                return axios.post('http://localhost/api/bookings/hold', {
+                    schedule_id: 1, // Fix cứng theo logic của bạn
+                    cabin_class_id: cabinId,
+                    quantity: 1,
+                    guests: guests 
+                });
+            })
+            .then(holdRes => {
+                setBookingId(holdRes.data.data.booking_id);
+                setTimeLeft(holdRes.data.data.remaining_seconds);
+            })
+            .catch(err => {
+                console.error("Lỗi giữ phòng:", err);
+                navigate('/');
             });
-        })
-        .then(holdRes => {
-            // Dù F5 bao nhiêu lần, Backend cũng trả về đúng 1 ID và số giây thực tế còn lại
-            setBookingId(holdRes.data.data.booking_id);
-            setTimeLeft(holdRes.data.data.remaining_seconds);
-        })
-        .catch(err => {
-            console.error(err);
+    }, [cruiseId, cabinId, guests, navigate]);
+
+    // 4. useEffect 2: WEBSOCKET
+    useEffect(() => {
+        if (!bookingId) return;
+        const channel = echo.channel(`booking.${bookingId}`);
+
+        channel.listen('.BookingExpired', () => {
+            alert("Thời gian giữ chỗ đã hết!");
             navigate('/');
         });
-}, [cruiseId, cabinId, navigate]);
 
-    // 3. useEffect 2: LẮNG NGHE WEBSOCKET (Đuổi khách Real-time)
-  useEffect(() => {
-    if (!bookingId) return;
+        channel.listen('.TimerUpdated', (e: { remainingSeconds: number }) => {
+            setTimeLeft(e.remainingSeconds);
+        });
 
-    const channel = echo.channel(`booking.${bookingId}`);
+        return () => {
+            echo.leaveChannel(`booking.${bookingId}`);
+        };
+    }, [bookingId, navigate]);
 
-    // 1. Nghe sự kiện hết hạn (Quan trọng nhất)
-    channel.listen('.BookingExpired', () => {
-        alert("Thời gian giữ chỗ đã hết!");
-        navigate('/');
-    });
-
-    // 2. (Tùy chọn) Nghe sự kiện cập nhật thời gian từ Server để đồng bộ lại nếu bị lệch
-    channel.listen('.TimerUpdated', (e: { remainingSeconds: number }) => {
-        setTimeLeft(e.remainingSeconds);
-    });
-
-    return () => {
-        echo.leaveChannel(`booking.${bookingId}`);
-    };
-}, [bookingId]);
-
-    // 4. useEffect 3: LOGIC ĐẾM NGƯỢC (Hiển thị UI)
+    // 5. useEffect 3: ĐẾM NGƯỢC
     useEffect(() => {
         if (timeLeft === null) return;
-
         if (timeLeft <= 0) {
             alert("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
             navigate(`/cruise/${cruiseId}`);
             return;
         }
-
         const timerId = setInterval(() => {
             setTimeLeft(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
         }, 1000);
-
         return () => clearInterval(timerId);
     }, [timeLeft, navigate, cruiseId]);
 
-    // 5. Các hàm hỗ trợ và xử lý giao diện
-    const formatTime = (seconds: number | null) => {
-        if (seconds === null) return "00:00";
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-    };
-
+    // 6. XỬ LÝ THANH TOÁN
     const handlePayment = async (e: React.FormEvent) => {
-        e.preventDefault();
-        
-        // Kiểm tra an toàn xem đã có ID đơn hàng từ lúc hold phòng chưa
+        e.preventDefault();
         if (!bookingId) {
             alert("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
             return;
         }
 
-        setIsProcessing(true);
+        setIsProcessing(true);
 
         try {
-            // Gửi request xuống PaymentController
             const response = await axios.post('http://localhost/api/payment/create', {
                 booking_id: bookingId,
-                payment_method: paymentMethod, // 'vnpay' hoặc 'credit_card'
-                amount: totalAmount, // Lấy tổng tiền đã cộng Add-ons
-                addons: addons // (Tùy chọn) Truyền thêm addons nếu backend cần lưu lại
+                payment_method: paymentMethod,
+                amount: totalAmount, // Gửi Tổng tiền cuối cùng sang Backend
+                addons: addons, 
+                taxes: taxes 
             });
 
-            // Nếu thanh toán qua cổng ngoài (VNPAY, MoMo) backend sẽ trả về URL
             if (response.data && response.data.checkoutUrl) {
-                // Chuyển hướng người dùng sang trang thanh toán của VNPAY
                 window.location.href = response.data.checkoutUrl;
             } else {
-                // Nếu thanh toán thẻ nội bộ thành công ngay (hoặc code test trả về OK)
                 setIsProcessing(false);
                 setIsSuccess(true);
                 localStorage.removeItem(`pending_booking_${cruiseId}_${cabinId}`);
@@ -139,284 +146,204 @@ useEffect(() => {
             }
         } catch (error: any) {
             console.error('Lỗi thanh toán:', error);
-            alert(error.response?.data?.message || 'Giao dịch bị từ chối hoặc có lỗi hệ thống. Vui lòng thử lại!');
+            alert(error.response?.data?.message || 'Giao dịch bị từ chối. Vui lòng thử lại!');
             setIsProcessing(false);
         }
-    };
-
-    // Tính toán giá tiền
-    const guests = 2;
-    const basePrice = cabinData?.price || 0;
-    const taxes = 500000 * guests;
-    const addonPrices = {
-        insurance: 250000 * guests,
-        wifi: 150000 * 3,
-        beverage: 800000 * guests
     };
 
-    const totalAddons = 
-        (addons.insurance ? addonPrices.insurance : 0) +
-        (addons.wifi ? addonPrices.wifi : 0) +
-        (addons.beverage ? addonPrices.beverage : 0);
-
-    const totalAmount = basePrice + taxes + totalAddons;
+    const formatTime = (seconds: number | null) => {
+        if (seconds === null) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
 
     // Render Loading
     if (!cruiseData || !cabinData) {
-        return <div className="p-20 text-center text-xl font-serif">Đang thiết lập kênh thanh toán bảo mật...</div>;
+        return <div className="min-h-screen flex items-center justify-center text-xl font-serif text-slate-600">Đang thiết lập kênh thanh toán bảo mật...</div>;
     }
+
     if (isSuccess) {
-      return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center"
-          >
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-green-500" />
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <CheckCircle className="w-10 h-10 text-green-500" />
+                    </div>
+                    <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">Đặt Phòng Thành Công!</h2>
+                    <p className="text-slate-600 mb-8">Kỳ nghỉ dưỡng xa hoa của quý khách đã được xác nhận. Email hướng dẫn chi tiết đã được gửi đi.</p>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8 text-left">
+                        <div className="text-sm text-slate-500 uppercase tracking-wider mb-1">Mã Chuyến Đi</div>
+                        <div className="font-mono font-bold text-xl text-slate-900">OCL-{bookingId}</div>
+                    </div>
+                    <p className="text-sm text-slate-500 animate-pulse">Đang chuyển hướng về Bảng điều khiển...</p>
+                </motion.div>
             </div>
-            <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">Đặt Phòng Thành Công!</h2>
-            <p className="text-slate-600 mb-8">Kỳ nghỉ dưỡng xa hoa của quý khách đã được xác nhận. Email hướng dẫn chi tiết đã được gửi đi.</p>
-            
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8 text-left">
-              <div className="text-sm text-slate-500 uppercase tracking-wider mb-1">Mã Chuyến Đi</div>
-              <div className="font-mono font-bold text-xl text-slate-900">OCL-{bookingId || Math.floor(Math.random() * 1000000)}</div>
-            </div>
-            
-            <p className="text-sm text-slate-500 animate-pulse">Đang chuyển hướng về Bảng điều khiển...</p>
-          </motion.div>
-        </div>
-      );
+        );
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 relative">
-        
-        {/* THANH ĐẾM NGƯỢC GIỮ PHÒNG NỔI BẬT LÊN TRÊN CÙNG */}
-        <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-20 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
-          <Clock className="w-5 h-5 animate-pulse" />
-          Phòng của bạn đang được giữ trong <span className="text-white font-bold text-lg w-12 text-center">{formatTime(timeLeft)}</span>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
-          
-          {/* Cột trái - Form thanh toán */}
-          <div className="lg:w-2/3 space-y-8">
-            
-            {/* Add-ons Section */}
-            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-6 md:p-8 border-b border-slate-100">
-                <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Nâng Tầm Trải Nghiệm</h2>
-                <p className="text-slate-600">Chọn các dịch vụ cao cấp để chuyến đi của bạn thêm phần hoàn hảo.</p>
-              </div>
-              
-              <div className="p-6 md:p-8 space-y-4">
-                {/* Premium Beverage Package */}
-                <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.beverage ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1">
-                      <input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.beverage} onChange={() => setAddons({...addons, beverage: !addons.beverage})} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900">Gói Đồ Uống Thượng Hạng</h4>
-                      <p className="text-sm text-slate-600">Thỏa thích thưởng thức rượu vang, cocktail và cà phê pha máy không giới hạn.</p>
-                    </div>
-                  </div>
-                  <div className="text-right ml-4 shrink-0">
-                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</div>
-                    <div className="text-xs text-slate-500">tổng cộng</div>
-                  </div>
-                </label>
-
-                {/* High-Speed Wi-Fi */}
-                <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.wifi ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1">
-                      <input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.wifi} onChange={() => setAddons({...addons, wifi: !addons.wifi})} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900">Internet Vệ Tinh Starlink</h4>
-                      <p className="text-sm text-slate-600">Kết nối mạng tốc độ cao ngay giữa đại dương. (1 thiết bị/khách).</p>
-                    </div>
-                  </div>
-                  <div className="text-right ml-4 shrink-0">
-                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</div>
-                    <div className="text-xs text-slate-500">tổng cộng</div>
-                  </div>
-                </label>
-
-                {/* Travel Insurance */}
-                <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.insurance ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                  <div className="flex items-start gap-4">
-                    <div className="mt-1">
-                      <input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.insurance} onChange={() => setAddons({...addons, insurance: !addons.insurance})} />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900">Bảo Hiểm Du Lịch OceanaLux</h4>
-                      <p className="text-sm text-slate-600">Bảo vệ toàn diện cho hành lý, y tế và hủy chuyến không lường trước.</p>
-                    </div>
-                  </div>
-                  <div className="text-right ml-4 shrink-0">
-                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</div>
-                    <div className="text-xs text-slate-500">tổng cộng</div>
-                  </div>
-                </label>
-              </div>
-            </section>
-
-            {/* Payment Section */}
-            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-6 md:p-8 border-b border-slate-100">
-                <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Phương Thức Thanh Toán</h2>
-                <div className="flex items-center gap-2 text-sm text-green-600 font-medium bg-green-50 w-fit px-3 py-1 rounded-full">
-                  <ShieldCheck className="w-4 h-4" /> Thanh toán mã hóa bảo mật 256-bit
-                </div>
-              </div>
-
-              <form onSubmit={handlePayment} className="p-6 md:p-8">
-                <div className="space-y-4 mb-8">
-                  {/* Các phương thức thanh toán giữ nguyên logic, chỉ dịch text */}
-                  <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'credit_card' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-4">
-                      <input type="radio" name="payment" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
-                      <div className="flex items-center gap-3 w-full justify-between">
-                        <div className="flex items-center gap-2 font-bold text-slate-900">
-                          <CreditCard className="w-6 h-6 text-slate-600" /> Thẻ Tín Dụng / Ghi Nợ Quốc Tế
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {paymentMethod === 'credit_card' && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-6 space-y-4">
-                        {/* Inputs thẻ tín dụng */}
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Số Thẻ</label>
-                          <input required type="text" placeholder="0000 0000 0000 0000" className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ngày Hết Hạn</label>
-                            <input required type="text" placeholder="MM/YY" className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">CVV</label>
-                            <input required type="text" placeholder="123" className="w-full px-4 py-3 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" />
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </label>
-
-                  {/* VNPAY */}
-                  <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'vnpay' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                    <div className="flex items-center gap-4">
-                      <input type="radio" name="payment" value="vnpay" checked={paymentMethod === 'vnpay'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
-                      <div className="flex items-center gap-3">
-                        <Wallet className="w-6 h-6 text-blue-600" /> <span className="font-bold text-slate-900">VNPAY (Quét mã QR / Thẻ nội địa)</span>
-                      </div>
-                    </div>
-                  </label>
-                  {/* Thanh toán tiền mặt (Chỉ dành cho Test) */}
-                  <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                   <div className="flex items-center gap-4">
-                    <input type="radio" name="payment" value="cash" checked={paymentMethod === 'cash'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-green-500" />
-                    <div className="flex items-center gap-3">
-                     <ShieldCheck className="w-6 h-6 text-green-600" /> 
-                     <span className="font-bold text-slate-900">Thanh toán tiền mặt (Test Mode - Auto Success)</span>
-                    </div>
-                   </div>
-                  </label>
-                </div>
-
-                <button 
-                  type="submit" 
-                  disabled={isProcessing}
-                  className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-all shadow-xl disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Đang xử lý giao dịch...
-                    </>
-                  ) : (
-                    <>Hoàn Tất Đặt Phòng • {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</>
-                  )}
-                </button>
-              </form>
-            </section>
-          </div>
-
-          {/* Cột Phải - Order Summary */}
-          <div className="lg:w-1/3">
-            <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden sticky top-32 text-white">
-              <div className="p-6 border-b border-slate-800">
-                <h3 className="text-xl font-bold font-serif mb-1">Tóm Tắt Đơn Hàng</h3>
-                <p className="text-slate-400 text-sm">Kiểm tra chi tiết chuyến hải trình</p>
-              </div>
-              
-              <div className="p-6 space-y-6">
-                <div className="flex gap-4 items-start">
-                  <img src={cruiseData.images && cruiseData.images[0] ? cruiseData.images[0].image_url : "/images/tau-1.jpg"} alt="Ảnh tàu" className="w-20 h-20 rounded-lg object-cover" />
-                  <div>
-                    <h4 className="font-bold text-white leading-tight mb-1">{cruiseData.name}</h4>
-                    <div className="text-xs text-amber-500 font-semibold uppercase">{cabinData.name}</div>
-                    <div className="text-xs text-slate-400 mt-1">3 Ngày 2 Đêm • {guests} Khách</div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-6 border-t border-slate-800">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Giá phòng ({guests} Khách)</span>
-                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(basePrice)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400 flex items-center gap-1">Thuế & Phí Cảng <HelpCircle className="w-3 h-3" /></span>
-                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(taxes)}</span>
-                  </div>
-                  
-                  {totalAddons > 0 && (
-                    <div className="pt-3 mt-3 border-t border-slate-800 border-dashed space-y-3">
-                      <div className="text-xs font-bold text-amber-500 uppercase tracking-wider">Dịch Vụ Bổ Sung</div>
-                      {addons.beverage && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-400 text-xs">Gói đồ uống</span>
-                          <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</span>
-                        </div>
-                      )}
-                      {addons.wifi && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-400 text-xs">Wifi Starlink</span>
-                          <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</span>
-                        </div>
-                      )}
-                      {addons.insurance && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-slate-400 text-xs">Bảo hiểm du lịch</span>
-                          <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-6 border-t border-slate-800 flex justify-between items-end">
-                  <div>
-                    <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Tổng Tiền</div>
-                    <div className="text-xs text-slate-500">Đã bao gồm VAT</div>
-                  </div>
-                  <div className="text-2xl font-bold text-amber-500">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</div>
-                </div>
-              </div>
-              
-              <div className="bg-slate-950 p-4 text-center text-xs text-slate-500 flex justify-center items-center gap-4">
-                <span className="flex items-center gap-1"><ShieldCheck className="w-4 h-4 text-slate-400" /> Thanh Toán An Toàn</span>
-                <span className="flex items-center gap-1"><Ticket className="w-4 h-4 text-slate-400" /> Cam Kết Giá Tốt</span>
-              </div>
+        <div className="min-h-screen bg-slate-50 relative">
+            {/* THANH ĐẾM NGƯỢC */}
+            <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-0 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
+                <Clock className="w-5 h-5 animate-pulse" />
+                Phòng của bạn đang được giữ trong <span className="text-white font-bold text-lg w-12 text-center">{formatTime(timeLeft)}</span>
             </div>
-          </div>
 
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
+                {/* CỘT TRÁI - FORM THANH TOÁN */}
+                <div className="lg:w-2/3 space-y-8">
+                    {/* NÂNG TẦM TRẢI NGHIỆM */}
+                    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="p-6 md:p-8 border-b border-slate-100">
+                            <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Nâng Tầm Trải Nghiệm</h2>
+                            <p className="text-slate-600">Chọn các dịch vụ cao cấp để chuyến đi của bạn thêm phần hoàn hảo.</p>
+                        </div>
+                        <div className="p-6 md:p-8 space-y-4">
+                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.beverage ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                <div className="flex items-start gap-4">
+                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.beverage} onChange={(e) => setAddons({...addons, beverage: e.target.checked})} /></div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Gói Đồ Uống Thượng Hạng</h4>
+                                        <p className="text-sm text-slate-600">Thỏa thích thưởng thức rượu vang, cocktail và cà phê pha máy không giới hạn.</p>
+                                    </div>
+                                </div>
+                                <div className="text-right ml-4 shrink-0">
+                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</div>
+                                    <div className="text-xs text-slate-500">tổng cộng</div>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.wifi ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                <div className="flex items-start gap-4">
+                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.wifi} onChange={(e) => setAddons({...addons, wifi: e.target.checked})} /></div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Internet Vệ Tinh Starlink</h4>
+                                        <p className="text-sm text-slate-600">Kết nối mạng tốc độ cao ngay giữa đại dương. (1 thiết bị/khách).</p>
+                                    </div>
+                                </div>
+                                <div className="text-right ml-4 shrink-0">
+                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</div>
+                                    <div className="text-xs text-slate-500">tổng cộng</div>
+                                </div>
+                            </label>
+
+                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.insurance ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
+                                <div className="flex items-start gap-4">
+                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.insurance} onChange={(e) => setAddons({...addons, insurance: e.target.checked})} /></div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-900">Bảo Hiểm Du Lịch OceanaLux</h4>
+                                        <p className="text-sm text-slate-600">Bảo vệ toàn diện cho hành lý, y tế và hủy chuyến không lường trước.</p>
+                                    </div>
+                                </div>
+                                <div className="text-right ml-4 shrink-0">
+                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</div>
+                                    <div className="text-xs text-slate-500">tổng cộng</div>
+                                </div>
+                            </label>
+                        </div>
+                    </section>
+
+                    {/* PHƯƠNG THỨC THANH TOÁN */}
+                    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="p-6 md:p-8 border-b border-slate-100">
+                            <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Phương Thức Thanh Toán</h2>
+                            <div className="flex items-center gap-2 text-sm text-green-600 font-medium bg-green-50 w-fit px-3 py-1 rounded-full">
+                                <ShieldCheck className="w-4 h-4" /> Thanh toán mã hóa bảo mật 256-bit
+                            </div>
+                        </div>
+                        <form onSubmit={handlePayment} className="p-6 md:p-8">
+                            <div className="space-y-4 mb-8">
+                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'vnpay' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <input type="radio" name="payment" value="vnpay" checked={paymentMethod === 'vnpay'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
+                                        <div className="flex items-center gap-3"><Wallet className="w-6 h-6 text-blue-600" /> <span className="font-bold text-slate-900">VNPAY (Quét mã QR / Thẻ nội địa)</span></div>
+                                    </div>
+                                </label>
+                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'credit_card' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <input type="radio" name="payment" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
+                                        <div className="flex items-center gap-3"><CreditCard className="w-6 h-6 text-slate-600" /> <span className="font-bold text-slate-900">Thẻ Tín Dụng Quốc Tế</span></div>
+                                    </div>
+                                </label>
+                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <input type="radio" name="payment" value="cash" checked={paymentMethod === 'cash'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-green-500" />
+                                        <div className="flex items-center gap-3"><ShieldCheck className="w-6 h-6 text-green-600" /> <span className="font-bold text-slate-900">Thanh toán tiền mặt (Test Mode)</span></div>
+                                    </div>
+                                </label>
+                            </div>
+                            <button type="submit" disabled={isProcessing} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-all shadow-xl disabled:opacity-70 flex items-center justify-center gap-2">
+                                {isProcessing ? (
+                                    <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Đang kết nối ngân hàng...</>
+                                ) : (
+                                    <>Xác Nhận Thanh Toán • {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</>
+                                )}
+                            </button>
+                        </form>
+                    </section>
+                </div>
+
+                {/* CỘT PHẢI - TÓM TẮT */}
+                <div className="lg:w-1/3">
+                    <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden sticky top-24 text-white">
+                        <div className="p-6 border-b border-slate-800">
+                            <h3 className="text-xl font-bold font-serif mb-1">Tóm Tắt Đơn Hàng</h3>
+                            <p className="text-slate-400 text-sm">Kiểm tra chi tiết chuyến hải trình</p>
+                        </div>
+                        <div className="p-6 space-y-6">
+                            <div className="flex gap-4 items-start">
+                                <img src={cruiseData.images && cruiseData.images[0] ? cruiseData.images[0].image_url : "/images/tau-1.jpg"} alt="Ảnh tàu" className="w-20 h-20 rounded-lg object-cover" />
+                                <div>
+                                    <h4 className="font-bold text-white leading-tight mb-1">{cruiseData.name}</h4>
+                                    <div className="text-xs text-amber-500 font-semibold uppercase">{cabinData.name}</div>
+                                    <div className="text-xs text-slate-400 mt-1">3 Ngày 2 Đêm • {guests} Khách</div>
+                                </div>
+                            </div>
+                            <div className="space-y-3 pt-6 border-t border-slate-800">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-400">Giá phòng ({guests} Khách)</span>
+                                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(basePrice)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-400 flex items-center gap-1">Thuế & Phí Cảng</span>
+                                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(taxes)}</span>
+                                </div>
+                                {totalAddons > 0 && (
+                                    <div className="pt-3 mt-3 border-t border-slate-800 border-dashed space-y-3">
+                                        <div className="text-xs font-bold text-amber-500 uppercase tracking-wider">Dịch Vụ Bổ Sung</div>
+                                        {addons.beverage && (
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400 text-xs">Gói đồ uống</span>
+                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</span>
+                                            </div>
+                                        )}
+                                        {addons.wifi && (
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400 text-xs">Wifi Starlink</span>
+                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</span>
+                                            </div>
+                                        )}
+                                        {addons.insurance && (
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-slate-400 text-xs">Bảo hiểm du lịch</span>
+                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="pt-6 border-t border-slate-800 flex justify-between items-end">
+                                <div>
+                                    <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Tổng Tiền</div>
+                                    <div className="text-xs text-slate-500">Đã bao gồm VAT</div>
+                                </div>
+                                <div className="text-2xl font-bold text-amber-500">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
     );
-  }
+}

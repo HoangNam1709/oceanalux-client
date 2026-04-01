@@ -10,7 +10,7 @@ import { SignUpPage } from "./pages/SignUpPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { Layout } from "./components/Layout";
-
+import { PaymentResultPage } from "./pages/PaymentResultPage";
 function App() {
   return (
     <BrowserRouter>
@@ -22,6 +22,7 @@ function App() {
           <Route path="/cruise/:id" element={<CruiseDetailPage />} />
           <Route path="/book/:id" element={<BookingPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
         </Route>
         
