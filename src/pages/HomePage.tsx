@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Search, Calendar, Users, MapPin, ChevronRight, Star, Clock, PawPrint, Baby } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { echo } from "../lib/echo";
+import { echo } from "../echo";
 
 export function HomePage() {
   const navigate = useNavigate();

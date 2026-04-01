@@ -8,47 +8,54 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("bookings");
   
-  // STATE LƯU DỮ LIỆU THẬT
+  // STATE LƯU DỮ LIỆU
   const [user, setUser] = useState<any>(null);
   const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [pastBookings, setPastBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // STATE PROFILE
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     
-    // Nếu không có token, đá về trang đăng nhập
     if (!token) {
       navigate("/login");
       return;
     }
 
-    // GỌI API LẤY THÔNG TIN USER VÀ ĐƠN HÀNG
     const fetchData = async () => {
       try {
-        // 1. Lấy thông tin User hiện tại
-        // Đảm bảo bạn có route GET /api/user trong Laravel
+        // 1. Lấy thông tin User
         const userRes = await axios.get("http://localhost/api/user", {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setUser(userRes.data);
+        const userData = userRes.data.data || userRes.data;
+        setUser(userData);
+        setEditName(userData.name || "");
+        setEditPhone(userData.phone || "");
 
-        // 2. Lấy danh sách đặt phòng của User
-        // Bạn cần tạo route GET /api/my-bookings bên Laravel để trả về danh sách đơn hàng
+        // 2. Lấy danh sách đặt phòng
         const bookingRes = await axios.get("http://localhost/api/my-bookings", {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         const allBookings = bookingRes.data.data || [];
+        console.log("Toàn bộ đơn hàng lấy từ API:", allBookings);
 
-        // Tạm thời phân loại: Đơn hàng confirmed (Sắp tới) và completed (Đã đi)
-        // Bạn có thể chỉnh lại điều kiện lọc này theo đúng cấu trúc DB của bạn
-        setUpcomingBookings(allBookings.filter((b: any) => b.status === 'confirmed' || b.status === 'holding'));
-        setPastBookings(allBookings.filter((b: any) => b.status === 'completed' || b.status === 'cancelled'));
+        // Phân loại đơn hàng
+        setUpcomingBookings(allBookings.filter((b: any) => 
+            b.status === 'confirmed' || b.status === 'holding' || b.status === 'paid'
+        ));
+        setPastBookings(allBookings.filter((b: any) => 
+            b.status === 'completed' || b.status === 'cancelled'
+        ));
         
       } catch (error) {
         console.error("Lỗi lấy dữ liệu Dashboard:", error);
-        // Nếu token hết hạn (lỗi 401), đăng xuất người dùng
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           handleLogout();
         }
@@ -67,15 +74,42 @@ export function Dashboard() {
     window.location.reload();
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.put("http://localhost/api/user/profile", {
+        name: editName,
+        phone: editPhone
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      alert("Cập nhật thông tin thành công!");
+      setUser(res.data.user || res.data.data); 
+    } catch (error) {
+      console.error("Lỗi cập nhật profile:", error);
+      alert("Có lỗi xảy ra khi cập nhật!");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-xl font-serif text-slate-800">Đang tải dữ liệu hồ sơ...</div>;
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
+            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="text-lg font-serif text-slate-600">Đang tải dữ liệu hồ sơ...</div>
+        </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Header - HIỂN THỊ TÊN THẬT */}
+        {/* HEADER USER */}
         <div className="bg-slate-900 rounded-3xl p-8 md:p-12 mb-8 relative overflow-hidden shadow-xl">
           <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
@@ -94,7 +128,7 @@ export function Dashboard() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Sidebar Nav */}
+          {/* SIDEBAR NAVIGATION */}
           <div className="w-full lg:w-64 shrink-0">
             <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-2 sticky top-28">
               {[
@@ -122,12 +156,14 @@ export function Dashboard() {
             </nav>
           </div>
 
-          {/* Main Content Area */}
+          {/* MAIN CONTENT AREA */}
           <div className="flex-1">
+            
+            {/* TAB: CHUYẾN ĐI CỦA TÔI */}
             {activeTab === 'bookings' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                 
-                {/* Upcoming Booking */}
+                {/* ĐƠN HÀNG SẮP TỚI */}
                 <section>
                   <h2 className="text-xl font-serif font-bold text-slate-900 mb-6 flex items-center gap-2">
                     <CalIcon className="w-5 h-5 text-amber-500" /> Chuyến Đi Sắp Tới
@@ -137,8 +173,7 @@ export function Dashboard() {
                     upcomingBookings.map((booking: any) => (
                       <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col md:flex-row mb-6">
                         <div className="w-full md:w-2/5 h-48 md:h-auto relative">
-                          {/* Lấy ảnh từ thông tin tàu, nếu không có lấy ảnh mặc định */}
-                          <img src={booking.schedule?.cruise?.images?.[0]?.image_url || "/images/tau-1.jpg"} alt="Upcoming" className="w-full h-full object-cover" />
+                          <img src={booking?.schedule?.cruise?.images?.[0]?.image_url || "/images/tau-1.jpg"} alt="Tàu" className="w-full h-full object-cover" />
                           <div className={`absolute top-4 left-4 text-slate-900 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm ${booking.status === 'holding' ? 'bg-blue-400' : 'bg-amber-500'}`}>
                             {booking.status === 'holding' ? 'Đang giữ chỗ' : 'Đã thanh toán'}
                           </div>
@@ -147,10 +182,10 @@ export function Dashboard() {
                           <div className="flex justify-between items-start mb-4">
                             <div>
                               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> Vịnh Hạ Long {/* Lấy từ DB nếu có */}
+                                <MapPin className="w-3 h-3" /> Vịnh Hạ Long
                               </div>
                               <h3 className="text-2xl font-bold font-serif text-slate-900">
-                                {booking.schedule?.cruise?.name || "Du thuyền 5 Sao"}
+                                {booking?.schedule?.cruise?.name || "Du thuyền 5 Sao"}
                               </h3>
                             </div>
                             <div className="text-right">
@@ -163,35 +198,58 @@ export function Dashboard() {
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                               <span className="text-xs text-slate-500 uppercase font-semibold block mb-1">Khởi hành</span>
                               <span className="font-medium text-slate-900">
-                                {booking.schedule?.departure_time ? new Date(booking.schedule.departure_time).toLocaleDateString('vi-VN') : 'Đang cập nhật'}
+                                {booking?.schedule?.departure_time ? new Date(booking.schedule.departure_time).toLocaleDateString('vi-VN') : 'Đang cập nhật'}
                               </span>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                               <span className="text-xs text-slate-500 uppercase font-semibold block mb-1">Tổng tiền</span>
                               <span className="font-medium text-amber-600">
-                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(booking.total_price)}
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(booking.total_price || 0)}
                               </span>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                               <span className="text-xs text-slate-500 uppercase font-semibold block mb-1">Hạng phòng</span>
-                              <span className="font-medium text-slate-900">
-                                {booking.details?.[0]?.cabin_class?.name || "Đang cập nhật"}
+                              <span className="font-medium text-slate-900 text-sm truncate block">
+                                {booking?.details?.[0]?.cabin_class?.name || booking?.details?.[0]?.cabinClass?.name || "Đang cập nhật"}
                               </span>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                               <span className="text-xs text-slate-500 uppercase font-semibold block mb-1">Trạng thái</span>
-                              <span className={`font-medium flex items-center gap-1 ${booking.status === 'holding' ? 'text-blue-600' : 'text-green-600'}`}>
+                              <span className={`font-medium flex items-center gap-1 text-sm ${booking.status === 'holding' ? 'text-blue-600' : 'text-green-600'}`}>
                                 <CheckCircle2 className="w-4 h-4" /> {booking.status === 'holding' ? 'Chưa thanh toán' : 'Thành công'}
                               </span>
                             </div>
                           </div>
 
                           <div className="mt-auto flex gap-3">
-                            <button className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-amber-500 hover:text-slate-900 transition-colors shadow-sm">
+                            <button 
+                              onClick={() => navigate(`/booking/${booking.id}`)} 
+                              className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-amber-500 hover:text-slate-900 transition-colors shadow-sm"
+                            >
                               Quản Lý
                             </button>
+                            
+                            {/* NÚT THANH TOÁN NGAY ĐÃ ĐƯỢC TỐI ƯU SIÊU AN TOÀN */}
                             {booking.status === 'holding' && (
-                              <button onClick={() => navigate(`/checkout/payment/${booking.id}`)} className="flex-1 bg-amber-500 text-slate-900 py-3 rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm">
+                              <button 
+                                onClick={() => {
+                                  try {
+                                    // Bọc bằng Optional Chaining an toàn tuyệt đối
+                                    const cruiseId = booking?.schedule?.cruise_id || booking?.schedule?.cruise?.id || '';
+                                    const cabinId = booking?.details?.[0]?.cabin_class_id || booking?.details?.[0]?.cabinClass?.id || booking?.details?.[0]?.cabin_class?.id || '';
+                                    
+                                    const checkoutUrl = `/checkout/payment/${booking.id}?cruise=${cruiseId}&cabin=${cabinId}`;
+                                    
+                                    // Báo log để theo dõi
+                                    console.log("Đang chuyển hướng sang:", checkoutUrl);
+                                    navigate(checkoutUrl);
+                                  } catch (err) {
+                                    console.error("Lỗi khi tạo URL thanh toán:", err);
+                                    alert("Đã xảy ra lỗi hệ thống, không thể chuyển trang!");
+                                  }
+                                }} 
+                                className="flex-1 bg-amber-500 text-slate-900 py-3 rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm"
+                              >
                                 Thanh Toán Ngay
                               </button>
                             )}
@@ -209,7 +267,7 @@ export function Dashboard() {
                   )}
                 </section>
 
-                {/* Past Bookings */}
+                {/* ĐƠN HÀNG TRONG QUÁ KHỨ */}
                 <section>
                   <h2 className="text-xl font-serif font-bold text-slate-900 mb-6 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-slate-400" /> Lịch Sử Chuyến Đi
@@ -218,13 +276,13 @@ export function Dashboard() {
                     {pastBookings.length > 0 ? (
                       pastBookings.map((booking: any) => (
                         <div key={booking.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-center gap-6 group hover:shadow-md transition-shadow">
-                          <img src={booking.schedule?.cruise?.images?.[0]?.image_url || "/images/tau-1.jpg"} alt="Past" className="w-24 h-24 rounded-xl object-cover shrink-0" />
+                          <img src={booking?.schedule?.cruise?.images?.[0]?.image_url || "/images/tau-1.jpg"} alt="Past" className="w-24 h-24 rounded-xl object-cover shrink-0" />
                           <div className="flex-1 text-center md:text-left">
                             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Mã đơn: {booking.booking_code}</div>
                             <h3 className="text-lg font-bold font-serif text-slate-900 mb-1">
-                              {booking.schedule?.cruise?.name || "Du thuyền 5 Sao"}
+                              {booking?.schedule?.cruise?.name || "Du thuyền 5 Sao"}
                             </h3>
-                            <p className="text-sm text-slate-600">Trạng thái: <span className={booking.status === 'cancelled' ? 'text-red-500' : 'text-green-500'}>{booking.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}</span></p>
+                            <p className="text-sm text-slate-600">Trạng thái: <span className={booking.status === 'cancelled' ? 'text-red-500 font-medium' : 'text-green-500 font-medium'}>{booking.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}</span></p>
                           </div>
                           <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
                             <button className="text-sm font-semibold text-slate-600 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors">
@@ -238,44 +296,55 @@ export function Dashboard() {
                     )}
                   </div>
                 </section>
-
               </motion.div>
             )}
 
+            {/* TAB: THÔNG TIN CÁ NHÂN */}
             {activeTab === 'profile' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
                 <h2 className="text-2xl font-serif font-bold text-slate-900 mb-6 pb-4 border-b border-slate-100">Thông Tin Cá Nhân</h2>
-                <form className="space-y-6">
+                <form onSubmit={handleUpdateProfile} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Họ và Tên</label>
-                      <input type="text" defaultValue={user?.name || ""} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" />
+                      <input 
+                        type="text" 
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)} 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all" 
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Vai trò</label>
-                      <input type="text" disabled defaultValue={user?.role === 'admin' ? "Quản Trị Viên" : "Khách Hàng"} className="w-full px-4 py-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg cursor-not-allowed outline-none" />
+                      <input type="text" disabled value={user?.role === 'admin' ? "Quản Trị Viên" : "Khách Hàng"} className="w-full px-4 py-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg cursor-not-allowed outline-none" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Địa chỉ Email</label>
-                      <input type="email" disabled defaultValue={user?.email || ""} className="w-full px-4 py-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg cursor-not-allowed outline-none" />
+                      <input type="email" disabled value={user?.email || ""} className="w-full px-4 py-3 bg-slate-100 border border-slate-200 text-slate-500 rounded-lg cursor-not-allowed outline-none" />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Số điện thoại</label>
-                      <input type="tel" defaultValue={user?.phone || ""} placeholder="Chưa cập nhật" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" />
+                      <input 
+                        type="tel" 
+                        value={editPhone} 
+                        onChange={(e) => setEditPhone(e.target.value)} 
+                        placeholder="Chưa cập nhật" 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all" 
+                      />
                     </div>
                   </div>
                   <div className="pt-6">
-                    <button type="button" className="bg-slate-900 text-white px-8 py-3 rounded-lg font-bold hover:bg-amber-500 hover:text-slate-900 transition-colors shadow-md">
-                      Lưu Thay Đổi
+                    <button type="submit" disabled={isUpdating} className="bg-slate-900 text-white px-8 py-3 rounded-lg font-bold hover:bg-amber-500 hover:text-slate-900 transition-colors shadow-md disabled:opacity-70">
+                      {isUpdating ? "Đang lưu..." : "Lưu Thay Đổi"}
                     </button>
                   </div>
                 </form>
               </motion.div>
             )}
 
-            {/* Tab Settings giữ nguyên... */}
+            {/* TAB: CÀI ĐẶT */}
             {activeTab === 'settings' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
                  <h2 className="text-2xl font-serif font-bold text-slate-900 mb-6 pb-4 border-b border-slate-100">Cài Đặt Thông Báo</h2>

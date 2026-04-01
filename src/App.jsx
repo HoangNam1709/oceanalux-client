@@ -24,6 +24,8 @@ function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          // Thêm :bookingId vào cuối path để React Router hiểu đây là một biến
+          <Route path="/checkout/payment/:bookingId?" element={<CheckoutPage />} />
         </Route>
         
         {/* Các trang không dùng chung Layout (như Login, Admin) */}

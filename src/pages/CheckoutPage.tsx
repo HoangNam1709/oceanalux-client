@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { CreditCard, Wallet, ShieldCheck, Ticket, HelpCircle, CheckCircle, Clock } from "lucide-react";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
+import { CreditCard, Wallet, ShieldCheck, CheckCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { echo } from "../echo";
@@ -12,13 +12,12 @@ export function CheckoutPage() {
     // 1. Khai báo các State
     const cruiseId = searchParams.get("cruise");
     const cabinId = searchParams.get("cabin");
-    
-    // Lấy số khách từ URL (mặc định là 2 nếu không có)
+    const { bookingId: paramBookingId } = useParams();
     const guests = Number(searchParams.get("guests")) || 2; 
 
     const [cruiseData, setCruiseData] = useState<any>(null);
     const [cabinData, setCabinData] = useState<any>(null);
-    const [bookingId, setBookingId] = useState<number | null>(null);
+    const [bookingId, setBookingId] = useState<number | null>(paramBookingId ? Number(paramBookingId) : null);
 
     const [paymentMethod, setPaymentMethod] = useState("vnpay");
     const [isProcessing, setIsProcessing] = useState(false);
@@ -31,15 +30,14 @@ export function CheckoutPage() {
         beverage: false
     });
 
-    // 2. TÍNH TOÁN GIÁ TIỀN (Sử dụng useMemo để tối ưu hiệu năng)
+    // 2. TÍNH TOÁN GIÁ TIỀN
     const { basePrice, taxes, addonPrices, totalAddons, totalAmount } = useMemo(() => {
-        // BẮT BUỘC ÉP KIỂU SỐ Ở ĐÂY ĐỂ TRÁNH LỖI NỐI CHUỖI
         const base = Number(cabinData?.price) || 0; 
         const taxAmount = 500000 * guests;
         
         const prices = {
             insurance: 250000 * guests,
-            wifi: 150000 * 3, // Giả định hành trình 3 ngày
+            wifi: 150000 * 3, 
             beverage: 800000 * guests
         };
 
@@ -57,8 +55,66 @@ export function CheckoutPage() {
         };
     }, [cabinData, addons, guests]);
 
-    // 3. useEffect 1: GỌI API GIỮ PHÒNG
+    // 3. useEffect 1: GỌI API GIỮ PHÒNG HOẶC PHỤC HỒI ĐƠN CŨ
     useEffect(() => {
+        const token = localStorage.getItem('token');
+
+        // ==========================================
+        // NGÃ RẼ 1: KHÁCH CŨ QUAY LẠI THANH TOÁN
+        // ==========================================
+        if (paramBookingId) {
+            axios.get(`http://localhost/api/bookings/${paramBookingId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            .then(res => {
+                const oldBooking = res.data.data;
+                const cruise = oldBooking?.schedule?.cruise;
+                const cabin = oldBooking?.details?.[0]?.cabinClass || oldBooking?.details?.[0]?.cabin_class;
+
+                if (cruise && cabin) {
+                    setCruiseData(cruise);
+                    setCabinData(cabin);
+                    setBookingId(oldBooking.id);
+                    
+                    // 👉 TỐI ƯU 1: KHÓA CHẾT ĐỒNG HỒ DỰA VÀO HOLD_EXPIRES_AT
+                    if (oldBooking.hold_expires_at) {
+                        const expireTimeStr = oldBooking.hold_expires_at.replace(' ', 'T'); // Fix lỗi iOS/Safari
+                        const expiresAt = new Date(expireTimeStr).getTime();
+                        const now = new Date().getTime();
+                        const remaining = Math.floor((expiresAt - now) / 1000);
+
+                        if (remaining > 0) {
+                            setTimeLeft(remaining); 
+                        } else {
+                            alert("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
+                            navigate('/dashboard');
+                        }
+                    } else {
+                        // Backup nếu API không trả về hold_expires_at
+                        const backupRemaining = Math.floor(Number(oldBooking.remaining_seconds));
+                        if(backupRemaining > 0) setTimeLeft(backupRemaining);
+                        else {
+                            alert("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
+                            navigate('/dashboard');
+                        }
+                    }
+                } else {
+                    alert("Dữ liệu đơn hàng cũ bị thiếu thông tin Tàu hoặc Phòng!");
+                    navigate('/dashboard');
+                }
+            })
+            .catch(err => {
+                console.error("Lỗi lấy đơn hàng cũ:", err);
+                alert("Đơn hàng không tồn tại hoặc đã hết hạn!");
+                navigate('/dashboard');
+            });
+            
+            return; 
+        }
+
+        // ==========================================
+        // NGÃ RẼ 2: KHÁCH MỚI TINH VÀO ĐẶT CHỖ
+        // ==========================================
         if (!cruiseId || !cabinId) return;
 
         axios.get(`http://localhost/api/cruises/${cruiseId}`)
@@ -66,23 +122,26 @@ export function CheckoutPage() {
                 setCruiseData(res.data.data);
                 const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);
                 setCabinData(cabin);
-
+                
                 return axios.post('http://localhost/api/bookings/hold', {
-                    schedule_id: 1, // Fix cứng theo logic của bạn
+                    schedule_id: 1, 
                     cabin_class_id: cabinId,
                     quantity: 1,
                     guests: guests 
+                }, {
+                    headers: { Authorization: `Bearer ${token}` } 
                 });
             })
             .then(holdRes => {
                 setBookingId(holdRes.data.data.booking_id);
-                setTimeLeft(holdRes.data.data.remaining_seconds);
+                // Ép kiểu và làm tròn khi tạo mới
+                setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
             })
             .catch(err => {
                 console.error("Lỗi giữ phòng:", err);
                 navigate('/');
             });
-    }, [cruiseId, cabinId, guests, navigate]);
+    }, [cruiseId, cabinId, guests, paramBookingId, navigate]);
 
     // 4. useEffect 2: WEBSOCKET
     useEffect(() => {
@@ -91,11 +150,11 @@ export function CheckoutPage() {
 
         channel.listen('.BookingExpired', () => {
             alert("Thời gian giữ chỗ đã hết!");
-            navigate('/');
+            navigate('/dashboard');
         });
 
         channel.listen('.TimerUpdated', (e: { remainingSeconds: number }) => {
-            setTimeLeft(e.remainingSeconds);
+            setTimeLeft(Math.floor(Number(e.remainingSeconds)));
         });
 
         return () => {
@@ -103,19 +162,32 @@ export function CheckoutPage() {
         };
     }, [bookingId, navigate]);
 
-    // 5. useEffect 3: ĐẾM NGƯỢC
+    // 5. useEffect 3: ĐẾM NGƯỢC (ĐÃ ĐƯỢC TỐI ƯU CHỐNG LEAK MEMORY)
     useEffect(() => {
+        // Nếu chưa có thời gian, không làm gì cả
         if (timeLeft === null) return;
+        
+        // Nếu hết giờ, thông báo và điều hướng NGAY LẬP TỨC
         if (timeLeft <= 0) {
             alert("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
-            navigate(`/cruise/${cruiseId}`);
+            navigate('/dashboard');
             return;
         }
+
+        // Thiết lập bộ đếm lùi mỗi giây
         const timerId = setInterval(() => {
-            setTimeLeft(prev => (prev !== null && prev > 0 ? prev - 1 : 0));
+            setTimeLeft(prev => {
+                if (prev === null || prev <= 1) {
+                    clearInterval(timerId); // Dừng Interval ngay khi về 0
+                    return 0;
+                }
+                return prev - 1;
+            });
         }, 1000);
+
+        // Cleanup function: Xóa timer khi component bị unmount (chuyển trang)
         return () => clearInterval(timerId);
-    }, [timeLeft, navigate, cruiseId]);
+    }, [timeLeft, navigate]);
 
     // 6. XỬ LÝ THANH TOÁN
     const handlePayment = async (e: React.FormEvent) => {
@@ -131,12 +203,13 @@ export function CheckoutPage() {
             const response = await axios.post('http://localhost/api/payment/create', {
                 booking_id: bookingId,
                 payment_method: paymentMethod,
-                amount: totalAmount, // Gửi Tổng tiền cuối cùng sang Backend
+                amount: totalAmount, 
                 addons: addons, 
                 taxes: taxes 
             });
 
             if (response.data && response.data.checkoutUrl) {
+                localStorage.setItem('retryCheckoutUrl', window.location.pathname + window.location.search);
                 window.location.href = response.data.checkoutUrl;
             } else {
                 setIsProcessing(false);
@@ -151,11 +224,13 @@ export function CheckoutPage() {
         }
     };
 
+    // Hàm format thời gian sạch sẽ
     const formatTime = (seconds: number | null) => {
-        if (seconds === null) return "00:00";
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
+        if (seconds === null || seconds <= 0) return "00:00";
+        const total = Math.floor(seconds);
+        const m = Math.floor(total / 60);
+        const s = total % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
     // Render Loading
@@ -187,7 +262,7 @@ export function CheckoutPage() {
             {/* THANH ĐẾM NGƯỢC */}
             <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-0 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
                 <Clock className="w-5 h-5 animate-pulse" />
-                Phòng của bạn đang được giữ trong <span className="text-white font-bold text-lg w-12 text-center">{formatTime(timeLeft)}</span>
+                Phòng của bạn đang được giữ trong <span className="text-white font-bold text-lg w-16 text-center">{formatTime(timeLeft)}</span>
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
