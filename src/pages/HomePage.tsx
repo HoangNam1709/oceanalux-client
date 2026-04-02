@@ -149,7 +149,7 @@ export function HomePage() {
               <div className="relative aspect-[4/5] overflow-hidden">
                 {/* Dùng ảnh mặc định tạm thời để giữ layout đẹp */}
                 <img
-                  src="https://images.unsplash.com/photo-1764132271511-61fdd16918ac?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjcnVpc2UlMjBzaGlwJTIwaW4lMjBzb3V0aGVhc3QlMjBhc2lhfGVufDF8fHx8MTc3MzgzMjM1M3ww&ixlib=rb-4.1.0&q=80&w=1080"
+                  src={cruise.thumbnail || "/images/default_cruise.jpg"}
                   alt={cruise.name}
                   className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700 ease-out"
                 />

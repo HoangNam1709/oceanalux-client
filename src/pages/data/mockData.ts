@@ -49,3 +49,35 @@ export const mockCruises = [
     reviews: []
   }
 ];
+// ─── ĐỊNH NGHĨA KIỂU DỮ LIỆU (INTERFACES) ───
+
+export interface Cabin {
+  id: string;
+  type: string; // "Interior" | "Ocean View" | "Balcony" | "Suite" | "Deluxe Suite" | "Royal Suite"
+  name: string;
+  pricePerNight: number;
+  capacity: number;
+  available: number;
+  amenities: string[];
+  imageUrl: string;
+}
+
+export interface Cruise {
+  id: string;
+  name: string;
+  destination: string;
+  durationDays: number;
+  durationNights: number;
+  starRating: number;
+  basePrice: number;
+  images: string[];
+  description: string;
+  facilities: string[];
+  cabins: Cabin[];
+  itinerary?: any[]; // Tạm thời để any[] vì màn admin hiện tại chưa dùng sâu vào chi tiết lịch trình
+  reviews?: any[];   // Tương tự cho reviews
+  featured: boolean;
+}
+
+// ─── DỮ LIỆU MẪU (MOCK DATA) VIỆT HÓA ───
+
