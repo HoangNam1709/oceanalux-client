@@ -11,6 +11,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { Layout } from "./components/Layout";
 import { PaymentResultPage } from "./pages/PaymentResultPage";
+import { BookingDetailPage } from './pages/BookingDetailPage'; // Sửa lại đường dẫn import cho đúng với project của bạn
 function App() {
   return (
     <BrowserRouter>
@@ -24,6 +25,8 @@ function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          // ... trong phần khai báo 
+          <Route path="/booking/:id" element={<BookingDetailPage />} />
           // Thêm :bookingId vào cuối path để React Router hiểu đây là một biến
           <Route path="/checkout/payment/:bookingId?" element={<CheckoutPage />} />
         </Route>
@@ -37,5 +40,7 @@ function App() {
     </BrowserRouter>
   );
 }
+
+
 
 export default App;
