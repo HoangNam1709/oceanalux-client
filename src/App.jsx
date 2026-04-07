@@ -11,7 +11,9 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { Layout } from "./components/Layout";
 import { PaymentResultPage } from "./pages/PaymentResultPage";
-import { BookingDetailPage } from './pages/BookingDetailPage'; // Sửa lại đường dẫn import cho đúng với project của bạn
+import { BookingDetailPage } from './pages/BookingDetailPage'; 
+import { AboutPage } from './pages/AboutPage';
+import { OffersPage } from './pages/OffersPage';
 function App() {
   return (
     <BrowserRouter>
@@ -22,6 +24,8 @@ function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/cruise/:id" element={<CruiseDetailPage />} />
           <Route path="/book/:id" element={<BookingPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/offers" element={<OffersPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/dashboard" element={<Dashboard />} />

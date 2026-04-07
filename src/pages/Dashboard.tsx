@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { User, Anchor, Settings, LogOut, MapPin, Calendar as CalIcon, Clock, Ship, CheckCircle2 } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { User, Anchor, Settings, LogOut, MapPin, Calendar as CalIcon, Clock, Ship, CheckCircle2, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { ReviewModal } from './ReviewModal';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -10,18 +11,24 @@ export function Dashboard() {
   
   // STATE LƯU DỮ LIỆU
   const [user, setUser] = useState<any>(null);
-  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
-  const [pastBookings, setPastBookings] = useState<any[]>([]);
+  const [allBookings, setAllBookings] = useState<any[]>([]); // Lưu tổng hợp tất cả đơn hàng
   const [loading, setLoading] = useState(true);
+  const [selectedReviewBooking, setSelectedReviewBooking] = useState<any>(null);
   
   // STATE PROFILE
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // HÀM CẬP NHẬT TRẠNG THÁI SAU KHI ĐÁNH GIÁ THÀNH CÔNG
+  const handleReviewSuccess = (bookingId: number) => {
+    setAllBookings(prev => prev.map(b => 
+      b.id === bookingId ? { ...b, is_reviewed: true } : b
+    ));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("token");
-    
     if (!token) {
       navigate("/login");
       return;
@@ -43,16 +50,8 @@ export function Dashboard() {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        const allBookings = bookingRes.data.data || [];
-        console.log("Toàn bộ đơn hàng lấy từ API:", allBookings);
-
-        // Phân loại đơn hàng
-        setUpcomingBookings(allBookings.filter((b: any) => 
-            b.status === 'confirmed' || b.status === 'holding' || b.status === 'paid'
-        ));
-        setPastBookings(allBookings.filter((b: any) => 
-            b.status === 'completed' || b.status === 'cancelled'
-        ));
+        // Lưu toàn bộ vào 1 state duy nhất
+        setAllBookings(bookingRes.data.data || []);
         
       } catch (error) {
         console.error("Lỗi lấy dữ liệu Dashboard:", error);
@@ -66,6 +65,19 @@ export function Dashboard() {
 
     fetchData();
   }, [navigate]);
+
+  // USEMEMO TỰ ĐỘNG PHÂN LOẠI ĐƠN HÀNG DỰA TRÊN allBookings
+  const upcomingBookings = useMemo(() => {
+    return allBookings.filter((b: any) => 
+      ['confirmed', 'holding', 'paid'].includes(b.status)
+    );
+  }, [allBookings]);
+
+  const pastBookings = useMemo(() => {
+    return allBookings.filter((b: any) => 
+      ['completed', 'cancelled'].includes(b.status)
+    );
+  }, [allBookings]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -182,7 +194,8 @@ export function Dashboard() {
                           <div className="flex justify-between items-start mb-4">
                             <div>
                               <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> Vịnh Hạ Long
+                                <MapPin className="w-3 h-3" />
+                                {booking?.schedule?.cruise?.destination || "Vịnh Hạ Long"}
                               </div>
                               <h3 className="text-2xl font-bold font-serif text-slate-900">
                                 {booking?.schedule?.cruise?.name || "Du thuyền 5 Sao"}
@@ -198,7 +211,7 @@ export function Dashboard() {
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                               <span className="text-xs text-slate-500 uppercase font-semibold block mb-1">Khởi hành</span>
                               <span className="font-medium text-slate-900">
-                                {booking?.schedule?.departure_time ? new Date(booking.schedule.departure_time).toLocaleDateString('vi-VN') : 'Đang cập nhật'}
+                                {booking?.schedule?.departure_date ? new Date(booking.schedule.departure_date).toLocaleDateString('vi-VN') : 'Đang cập nhật'}
                               </span>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -236,13 +249,9 @@ export function Dashboard() {
                                   try {
                                     const cruiseId = booking?.schedule?.cruise_id || booking?.schedule?.cruise?.id || '';
                                     const cabinId = booking?.details?.[0]?.cabin_class_id || booking?.details?.[0]?.cabinClass?.id || booking?.details?.[0]?.cabin_class?.id || '';
-                                    
                                     const checkoutUrl = `/checkout/payment/${booking.id}?cruise=${cruiseId}&cabin=${cabinId}`;
-                                    
-                                    console.log("Đang chuyển hướng sang:", checkoutUrl);
                                     navigate(checkoutUrl);
                                   } catch (err) {
-                                    console.error("Lỗi khi tạo URL thanh toán:", err);
                                     alert("Đã xảy ra lỗi hệ thống, không thể chuyển trang!");
                                   }
                                 }} 
@@ -265,7 +274,7 @@ export function Dashboard() {
                   )}
                 </section>
 
-                {/* ĐƠN HÀNG TRONG QUÁ KHỨ */}
+                {/* ĐƠN HÀNG TRONG QUÁ KHỨ VÀ ĐÁNH GIÁ */}
                 <section>
                   <h2 className="text-xl font-serif font-bold text-slate-900 mb-6 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-slate-400" /> Lịch Sử Chuyến Đi
@@ -282,14 +291,31 @@ export function Dashboard() {
                             </h3>
                             <p className="text-sm text-slate-600">Trạng thái: <span className={booking.status === 'cancelled' ? 'text-red-500 font-medium' : 'text-green-500 font-medium'}>{booking.status === 'cancelled' ? 'Đã hủy' : 'Hoàn thành'}</span></p>
                           </div>
-                          <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-                            {/* 👉 FIX: Đã thêm onClick cho nút Xem Biên Lai */}
+                          
+                          <div className="flex flex-col md:flex-row gap-2 shrink-0 w-full md:w-auto">
                             <button 
                                 onClick={() => navigate(`/booking/${booking.id}`)} 
-                                className="text-sm font-semibold text-slate-600 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
+                                className="text-sm font-semibold text-slate-600 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors flex items-center justify-center"
                             >
                               Xem Biên Lai
                             </button>
+
+                            {/* NÚT ĐÁNH GIÁ (Chỉ hiện nếu chuyến đi đã Completed và chưa đánh giá) */}
+                            {booking.status === 'completed' && !booking.is_reviewed && (
+                              <button 
+                                onClick={() => setSelectedReviewBooking(booking)}
+                                className="text-sm font-bold text-white bg-amber-500 px-5 py-2.5 rounded-xl shadow-sm shadow-amber-200 hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                <Star className="w-4 h-4 fill-white" /> Đánh Giá
+                              </button>
+                            )}
+                            
+                            {/* Nếu đã đánh giá rồi thì hiện dòng chữ cảm ơn */}
+                            {booking.status === 'completed' && booking.is_reviewed && (
+                              <span className="text-sm font-medium text-green-600 px-4 py-2 flex items-center justify-center gap-1.5 bg-green-50 rounded-xl">
+                                <CheckCircle2 className="w-4 h-4" /> Đã đánh giá
+                              </span>
+                            )}
                           </div>
                         </div>
                       ))
@@ -368,6 +394,14 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* COMPONENT MODAL ĐÁNH GIÁ (NẰM NGOÀI CÙNG) */}
+      <ReviewModal 
+        isOpen={!!selectedReviewBooking} 
+        onClose={() => setSelectedReviewBooking(null)} 
+        booking={selectedReviewBooking}
+        onSuccess={handleReviewSuccess}
+      />
     </div>
   );
 }

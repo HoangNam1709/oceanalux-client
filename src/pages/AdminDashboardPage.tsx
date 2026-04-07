@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import {
   Search, Download, Eye, Edit, X, Calendar, Users, DollarSign, Ship,
   ChevronDown, Plus, Trash2, Anchor, Star, MapPin, Clock, Check,
-  AlertTriangle, LayoutGrid, Bed, Save, ChevronRight, Image, Bell,EyeOff, Loader2, TrendingUp, BarChart3
+  AlertTriangle, LayoutGrid, Bed, Save, ChevronRight, Image, Bell,EyeOff, Loader2, TrendingUp, BarChart3,ArrowLeft
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AdminTab = "overview" | "bookings" | "cruises" | "cabins" | "accounts"; // 👈 Đổi profile thành accounts
 
@@ -13,7 +14,7 @@ type AdminTab = "overview" | "bookings" | "cruises" | "cabins" | "accounts"; // 
 interface Account {
   id: string; name: string; email: string; phone: string; role: string; createdAt: string;
 }
-type BookingStatus = "confirmed" | "pending" | "cancelled" | "completed";
+type BookingStatus = "paid" | "holding" | "cancelled" | "completed";
 
 interface Cabin {
   id: string; type: string; name: string; pricePerNight: number;
@@ -62,7 +63,6 @@ const formatCurrency = (amount: number) => {
   return amount.toLocaleString('vi-VN') + " VNĐ";
 };
 
-// 👉 THÊM HÀM MỚI NÀY: Hàm định dạng tiền thu gọn (dùng cho số tổng lớn ở Dashboard)
 const formatCompactCurrency = (amount: number) => {
   if (amount === undefined || amount === null || isNaN(amount)) return "0 VNĐ";
   
@@ -80,10 +80,10 @@ const getStatusBadge = (status: BookingStatus) => {
   const baseCls = "px-2.5 py-1 rounded-md text-[11px] font-bold border uppercase tracking-wide whitespace-nowrap inline-block text-center";
   
   switch (status) {
-    case "confirmed": 
+    case "paid": 
       // MỚI: Nền Deep Navy, Chữ Champagne Gold, viền mỏng bóng bẩy
-      return <span className={`${baseCls} bg-[#0A192F] text-[#D4AF37] border-[#0A192F] shadow-sm`}>Đã xác nhận</span>;
-    case "pending":   
+      return <span className={`${baseCls} bg-[#0A192F] text-[#D4AF37] border-[#0A192F] shadow-sm`}>Đã thanh toán</span>;
+    case "holding":   
       // Vàng Champagne nhạt
       return <span className={`${baseCls} bg-[#D4AF37]/10 text-[#D4AF37] border-[#D4AF37]/30`}>Chờ xử lý</span>;
     case "cancelled": 
@@ -126,7 +126,7 @@ interface CruiseModalProps {
 function CruiseModal({ cruise, onSave, onClose }: CruiseModalProps) {
   const isEdit = !!cruise;
   
-  // 1. Khởi tạo dữ liệu form (Đã thêm destination, duration)
+  // 1. Khởi tạo dữ liệu form 
   const initialData = cruise ? {
     id: cruise.id,
     name: cruise.name,
@@ -239,7 +239,13 @@ function CruiseModal({ cruise, onSave, onClose }: CruiseModalProps) {
 }
 function AccountModal({ account, onSave, onClose }: { account: Account | null; onSave: (data: any) => void; onClose: () => void }) {
   const isEdit = !!account;
-  const initialData = account ? { ...account, password: "" } : { name: "", email: "", phone: "", password: "", role: "Customer" };
+  const initialData = account 
+  ? { 
+      ...account, 
+      password: "", 
+      role: ((account.role || '').toLowerCase() === 'admin' || (account.role || '').toLowerCase() === 'super admin') ? 'admin' : 'customer' 
+    } 
+  : { name: "", email: "", phone: "", password: "", role: "customer" };
   const [form, setForm] = useState<any>(initialData);
   const [showPassword, setShowPassword] = useState(false);
   const handleSave = () => {
@@ -286,8 +292,8 @@ function AccountModal({ account, onSave, onClose }: { account: Account | null; o
             <Field label="Phân quyền (Role)">
               <div className="relative">
                 <select value={form.role} onChange={e => setForm({...form, role: e.target.value})} className={inputCls(false) + " appearance-none pr-10"}>
-                  <option value="Admin">Admin</option>
-                  <option value="Customer">Customer</option>
+                  <option value="admin">Admin</option>
+                  <option value="customer">Customer</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
@@ -422,6 +428,7 @@ function DeleteConfirm({ label, onConfirm, onClose }: { label: string; onConfirm
 // MAIN ADMIN DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════════
 export function AdminDashboardPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">("all");
@@ -440,13 +447,13 @@ export function AdminDashboardPage() {
   // ── CRUD States ──
   const [cruiseModal, setCruiseModal] = useState<"create" | Cruise | null>(null);
   const [deleteCruise, setDeleteCruise] = useState<Cruise | null>(null);
-
+  const [updatingId, setUpdatingId] = useState<number | string | null>(null);
   const [selectedCruiseId, setSelectedCruiseId] = useState<string>("");
   const [cabinModal, setCabinModal] = useState<"create" | Cabin | null>(null);
   const [deleteCabin, setDeleteCabin] = useState<Cabin | null>(null);
 
   const currentCruise = cruises.find(c => c.id === selectedCruiseId) ?? cruises[0];
-
+  
   // ── GỌI API LẤY DỮ LIỆU ──
 useEffect(() => {
     const fetchAdminData = async () => {
@@ -499,7 +506,40 @@ useEffect(() => {
 
     fetchAdminData();
   }, []);
+const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) => {
+  // Hiển thị loading cho dòng đang sửa
+  setUpdatingId(bookingId);
+  
+  try {
+    const token = localStorage.getItem("token");
+    
+    // 1. Gọi API cập nhật xuống Database
+    const response = await axios.put(`http://localhost/api/admin/bookings/${bookingId}/status`, {
+      status: newStatus
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
+   // 2. CẬP NHẬT TRỰC TIẾP VÀO MẢNG BOOKINGS (Đã fix lỗi ép kiểu)
+    setBookings((prevBookings) => 
+      prevBookings.map((b) => {
+        // Dùng String() để ép kiểu, đảm bảo 11 === "11"
+        if (String(b.id) === String(bookingId)) {
+          return { ...b, status: newStatus };
+        }
+        return b;
+      })
+    );
+
+    console.log("Cập nhật thành công:", response.data.message);
+
+  } catch (error) {
+    console.error("Lỗi cập nhật trạng thái:", error);
+    alert("Không thể cập nhật trạng thái. Vui lòng kiểm tra lại Backend!");
+  } finally {
+    setUpdatingId(null);
+  }
+};
   // ── Đã nối dây API: THÊM & SỬA DU THUYỀN ──
   const handleSaveCruise = async (data: any) => {
     try {
@@ -756,7 +796,16 @@ useEffect(() => {
             </div>
           </div>
         </div>
-
+{/* ── Nút Back (QUAY LẠI TRANG CHỦ HOẶC TRANG TRƯỚC) ── */}
+        <button 
+          onClick={() => navigate("/")} // Truyền "/" để về trang chủ, hoặc truyền -1 để về trang trước đó
+          className="mb-4 flex items-center gap-2 text-slate-500 hover:text-[#D4AF37] transition-colors font-semibold text-sm group"
+        >
+          <div className="p-1.5 rounded-lg bg-white border border-slate-200 group-hover:border-[#D4AF37] shadow-sm transition-all">
+            <ArrowLeft className="w-4 h-4" />
+          </div>
+          Về trang chủ
+        </button>
         {/* ── Tab Navigation ── */}
         <div className="flex flex-wrap gap-1 mb-8 bg-white p-1.5 rounded-xl shadow-sm border border-slate-200">
           {tabs.map(tab => {
@@ -933,8 +982,9 @@ useEffect(() => {
                   <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as BookingStatus | "all")}
                     className="w-full appearance-none px-5 pr-10 py-2.5 border border-slate-200 rounded-lg text-sm font-medium text-[#0A192F] focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/40 bg-white cursor-pointer">
                     <option value="all">Tất cả trạng thái</option>
-                    <option value="confirmed">Đã xác nhận</option>
-                    <option value="pending">Chờ xử lý</option>
+                    <option value="completed">Hoàn thành</option>
+                    <option value="paid">Đã thanh toán</option>
+                    <option value="holding">Chờ xử lý</option>
                     <option value="cancelled">Đã huỷ</option>
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -983,10 +1033,42 @@ useEffect(() => {
                             <div className="text-sm font-bold text-[#D4AF37]">{formatCurrency(b.totalAmount)}</div>
                             <div className="text-[10px] font-medium text-slate-500 uppercase">{b.paymentMethod}</div>
                           </td>
+                          
+                          {/* CỘT TRẠNG THÁI */}
                           <td className="py-4 px-5">{getStatusBadge(b.status)}</td>
+                          
+                          {/* CỘT HÀNH ĐỘNG MỚI (Tích hợp đổi trạng thái) */}
                           <td className="py-4 px-5">
-                            <div className="flex gap-2">
-                              <button onClick={() => setSelectedBooking(b)} className="p-2 rounded-md bg-[#0A192F]/5 text-[#0A192F] hover:bg-[#0A192F]/10 transition-colors" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
+                            <div className="flex items-center gap-2">
+                              {/* Nút Xem chi tiết */}
+                              <button 
+                                onClick={() => setSelectedBooking(b)} 
+                                className="p-2 rounded-md bg-[#0A192F]/5 text-[#0A192F] hover:bg-[#0A192F]/10 transition-colors" 
+                                title="Xem chi tiết"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+
+                              {/* Dropdown Đổi Trạng Thái */}
+                              <div className="relative">
+                                <select
+                                  value={b.status}
+                                  disabled={updatingId === b.id} // Vô hiệu hóa khi đang load API
+                                  onChange={(e) => handleUpdateStatus(b.id, e.target.value as BookingStatus)}
+                                  className="appearance-none pl-3 pr-8 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#D4AF37] focus:border-[#D4AF37] cursor-pointer disabled:opacity-50 text-slate-700 shadow-sm"
+                                >
+                                  <option value="holding">Giữ chỗ</option>
+                                  <option value="paid">Đã thanh toán</option>
+                                  <option value="completed">Hoàn thành</option>
+                                  <option value="cancelled">Hủy đơn</option>
+                                </select>
+                                <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                              </div>
+
+                              {/* Hiệu ứng xoay tròn Loading khi API đang chạy */}
+                              {updatingId === b.id && (
+                                <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1230,15 +1312,15 @@ useEffect(() => {
 
                         {/* CỘT 2: Phân quyền */}
                         <td className="py-4 px-6">
-                          <span className={`px-2.5 py-1 rounded text-xs font-bold border ${
-                            acc.role === 'Admin' ? 'bg-[#D4AF37]/10 text-[#D4AF37] border-[#D4AF37]/20' :
-                            acc.role === 'Customer' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                            'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}>
-                            {acc.role}
+                         <span className={`px-2.5 py-1 rounded text-xs font-bold border ${
+                         (acc.role || '').toLowerCase() === 'admin' 
+                          ? 'bg-[#0A192F] text-[#D4AF37] border-[#0A192F] shadow-sm' 
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
+                        {/* Viết hoa chữ cái đầu tiên cho đẹp giao diện */}
+                        {(acc.role || 'Customer').charAt(0).toUpperCase() + (acc.role || 'Customer').slice(1).toLowerCase()}
                           </span>
                         </td>
-
                         {/* CỘT 3: Ngày tham gia */}
                         <td className="py-4 px-6 text-sm text-slate-600 font-medium">
                           {acc.createdAt}

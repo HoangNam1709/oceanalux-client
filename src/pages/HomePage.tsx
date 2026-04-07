@@ -23,6 +23,12 @@ const HERO_SLIDES = [
     heading: "Sống Đẳng Cấp\nGiữa Biển Khơi",
     sub: "Hồ bơi vô cực, spa hàng đầu và ẩm thực Michelin chờ đón bạn",
   },
+  {
+    image: "https://images.unsplash.com/photo-1500687834377-1388ec3c5991?q=80&w=627&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    tagline: "Hành Trình Độc Bản",
+    heading: "Khám Phá Những\nHải Trình Bí Ẩn",
+    sub: "Chỉ có tại NamOcen - những chuyến đi không thể tìm thấy ở đâu khác",
+  }
 ];
 
 const STATS = [
@@ -43,6 +49,11 @@ const EXPERIENCES = [
     desc: "Không gian spa đẳng cấp thế giới với liệu trình độc quyền, hồ bơi nhiệt đới và phòng xông hơi toàn cảnh biển.",
     image: "https://images.unsplash.com/photo-1614368454831-0d6d814c87e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBzcGElMjB3ZWxsbmVzcyUyMHJlc29ydCUQDvDUxFShoWWbHougyHjr0tFz3E38fX8e0bnTUpya-P0mXW&ixlib=rb-4.1.0&q=80&w=1080",
   },
+  { 
+    icon: Waves, title: "Hải Trình Độc Bản",
+    desc: "Khám phá những hải trình độc quyền đến các điểm đến bí ẩn và tuyệt đẹp mà chỉ OceanaLux mới có.",
+    image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjdXJzaW5lfGVufDF8fHx8MTc3NTE1MzkyNHww&ixlib=rb-4.1.0&q=80&w=1080",
+  }
 ];
 
 const TESTIMONIALS = [
@@ -108,7 +119,7 @@ export function HomePage() {
   const [destination, setDestination] = useState("");
   const [dates, setDates] = useState("");
   const [guests, setGuests] = useState("");
-  
+  const today = new Date().toISOString().split('T')[0];
   // State hiệu ứng UI
   const [activeSlide, setActiveSlide] = useState(0);
   const [activeExp, setActiveExp] = useState(0);
@@ -136,10 +147,16 @@ export function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    navigate(`/search?dest=${destination}`);
-  };
+    // Tạo URLSearchParams để tự động encode các ký tự đặc biệt (khoảng trắng, dấu tiếng Việt)
+    const params = new URLSearchParams();
+  if (destination) params.append("location", destination);
+  if (dates) params.append("date", dates); // Bạn có thể cần format lại ngày nếu dùng DatePicker thật
+  if (guests) params.append("guests", guests);
+  // Chuyển hướng sang trang kết quả tìm kiếm
+  navigate(`/search?${params.toString()}`);
+};
 
   return (
     <div className="w-full bg-[#F8F9FA] font-sans overflow-x-hidden selection:bg-[#D4AF37] selection:text-[#0A192F]">
@@ -207,7 +224,7 @@ export function HomePage() {
                 <Calendar className="w-4 h-4 text-slate-400 group-hover:text-[#D4AF37] transition-colors shrink-0" />
                 <div className="flex flex-col w-full">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-[#D4AF37] transition-colors mb-0.5 cursor-pointer">Khởi hành</label>
-                  <input type="text" placeholder="Thêm ngày" value={dates} onChange={(e) => setDates(e.target.value)}
+                  <input type ="date" placeholder="Thêm ngày" value={dates||today} onChange={(e) => setDates(e.target.value)}
                     className="w-full text-sm font-semibold text-[#0A192F] focus:outline-none bg-transparent placeholder-slate-400 truncate" />
                 </div>
               </div>
@@ -217,7 +234,7 @@ export function HomePage() {
                 <Users className="w-4 h-4 text-slate-400 group-hover:text-[#D4AF37] transition-colors shrink-0" />
                 <div className="flex flex-col w-full">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 group-hover:text-[#D4AF37] transition-colors mb-0.5 cursor-pointer">Hành khách</label>
-                  <input type="text" placeholder="Thêm khách" value={guests} onChange={(e) => setGuests(e.target.value)}
+                  <input type="number" min = "1" placeholder="Thêm khách" value={guests||1} onChange={(e) => setGuests(e.target.value)}
                     className="w-full text-sm font-semibold text-[#0A192F] focus:outline-none bg-transparent placeholder-slate-400 truncate" />
                 </div>
               </div>
@@ -246,9 +263,8 @@ export function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* ═══════════════════════════════════════════════════════
-          §3  TRENDING CRUISES (Đổ dữ liệu API + Phủ UI Luxury)
+{/* ═══════════════════════════════════════════════════════
+         §3  TRENDING CRUISES (Đổ dữ liệu API + Phủ UI Luxury)
       ═══════════════════════════════════════════════════════ */}
       <section className="py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
@@ -266,54 +282,74 @@ export function HomePage() {
             Đang tải danh sách tàu...
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-            {trendingCruises.map((cruise: any, index: number) => (
-              <motion.div key={cruise.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }}
-                className="group bg-white flex flex-col rounded-2xl overflow-hidden shadow-lg hover:shadow-[0_20px_40px_rgba(10,25,47,0.1)] transition-all duration-500 border border-slate-100 hover:-translate-y-2">
-                
-                {/* Phần Hình Ảnh Tàu (API) */}
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img src={cruise.thumbnail || "/images/default_cruise.jpg"} alt={cruise.name} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A192F]/90 via-[#0A192F]/20 to-transparent opacity-90 transition-opacity duration-500"></div>
+          <>
+            {/* Lưới hiển thị tàu (Chỉ lấy 3 tàu đầu tiên) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+              {trendingCruises.slice(0, 3).map((cruise: any, index: number) => (
+                <motion.div key={cruise.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: index * 0.1 }}
+                  className="group bg-white flex flex-col rounded-2xl overflow-hidden shadow-lg hover:shadow-[0_20px_40px_rgba(10,25,47,0.1)] transition-all duration-500 border border-slate-100 hover:-translate-y-2">
                   
-                  {/* Rating từ Database */}
-                  <div className="absolute top-4 right-4 flex gap-1 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
-                    {[...Array(cruise.star_rating || 5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 text-[#D4AF37] fill-[#D4AF37]" />
-                    ))}
-                  </div>
-                  
-                  <div className="absolute bottom-6 left-6 right-6">
-                    <h3 className="text-2xl font-serif font-bold text-white mb-2 tracking-wide drop-shadow-md transform group-hover:-translate-y-1 transition-transform duration-500">{cruise.name}</h3>
-                  </div>
-                </div>
-
-                {/* Phần Thông Tin (API) */}
-                <div className="p-8 flex flex-col flex-1 bg-white">
-                  <div className="mb-6 flex-1">
-                    <p className="text-[#0A192F] font-bold uppercase tracking-wider text-sm mb-4 flex items-start gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#D4AF37] inline-block mt-1.5 shrink-0"></span>
-                      <span className="leading-relaxed">{cruise.description ? cruise.description.substring(0, 70) + '...' : 'Trải nghiệm đỉnh cao với các dịch vụ chuẩn 5 sao.'}</span>
-                    </p>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                      <p className="text-slate-500 text-xs font-medium leading-relaxed">
-                        <span className="font-bold text-[#0A192F] block mb-1">Nổi bật:</span> 
-                        {cruise.amenities && cruise.amenities.length > 0 ? cruise.amenities.map((a: any) => a.name).join(' • ') : 'Hồ bơi vô cực • Spa • Ẩm thực cao cấp'}
-                      </p>
+                  {/* Phần Hình Ảnh Tàu (API) */}
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    <img src={cruise.thumbnail || "/images/default_cruise.jpg"} alt={cruise.name} className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700 ease-out" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0A192F]/90 via-[#0A192F]/20 to-transparent opacity-90 transition-opacity duration-500"></div>
+                    
+                    {/* Rating từ Database */}
+                    <div className="absolute top-4 right-4 flex gap-1 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-lg">
+                      {[...Array(cruise.star_rating || 5)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 text-[#D4AF37] fill-[#D4AF37]" />
+                      ))}
+                    </div>
+                    
+                    <div className="absolute bottom-6 left-6 right-6">
+                      <h3 className="text-2xl font-serif font-bold text-white mb-2 tracking-wide drop-shadow-md transform group-hover:-translate-y-1 transition-transform duration-500">{cruise.name}</h3>
                     </div>
                   </div>
-                  
-                  <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                    <div className="text-sm font-medium text-slate-500">Khám phá ngay</div>
-                    <Link to={`/cruise/${cruise.id}`} className="flex items-center gap-2 bg-[#0A192F]/5 px-5 py-2.5 rounded-full text-[#0A192F] font-bold uppercase tracking-widest text-xs hover:bg-[#D4AF37] hover:text-[#0A192F] transition-all group/btn">
-                      <span>Chi Tiết</span>
-                      <ChevronRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
-                    </Link>
+
+                  {/* Phần Thông Tin (API) */}
+                  <div className="p-8 flex flex-col flex-1 bg-white">
+                    <div className="mb-6 flex-1">
+                      <p className="text-[#0A192F] font-bold uppercase tracking-wider text-sm mb-4 flex items-start gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#D4AF37] inline-block mt-1.5 shrink-0"></span>
+                        <span className="leading-relaxed">{cruise.description ? cruise.description.substring(0, 70) + '...' : 'Trải nghiệm đỉnh cao với các dịch vụ chuẩn 5 sao.'}</span>
+                      </p>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p className="text-slate-500 text-xs font-medium leading-relaxed">
+                          <span className="font-bold text-[#0A192F] block mb-1">Nổi bật:</span> 
+                          {cruise.amenities && cruise.amenities.length > 0 ? cruise.amenities.map((a: any) => a.name).join(' • ') : 'Hồ bơi vô cực • Spa • Ẩm thực cao cấp'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
+                      <div className="text-sm font-medium text-slate-500">Khám phá ngay</div>
+                      <Link to={`/cruise/${cruise.id}`} className="flex items-center gap-2 bg-[#0A192F]/5 px-5 py-2.5 rounded-full text-[#0A192F] font-bold uppercase tracking-widest text-xs hover:bg-[#D4AF37] hover:text-[#0A192F] transition-all group/btn">
+                        <span>Chi Tiết</span>
+                        <ChevronRight className="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" />
+                      </Link>
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Nút Xem Tất Cả */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }} 
+              whileInView={{ opacity: 1, y: 0 }} 
+              viewport={{ once: true }} 
+              transition={{ delay: 0.4 }}
+              className="mt-16 flex justify-center"
+            >
+              <Link 
+                to="/search" 
+                className="group flex items-center gap-3 bg-[#0A192F] text-white px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-[#D4AF37] hover:text-[#0A192F] transition-all duration-300 shadow-xl hover:-translate-y-1"
+              >
+                Xem Tất Cả Du Thuyền
+                <ChevronRight className="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-300" />
+              </Link>
+            </motion.div>
+          </>
         )}
       </section>
 
@@ -472,7 +508,12 @@ export function HomePage() {
             <form className="flex flex-col sm:flex-row gap-3 max-w-lg mx-auto bg-white/10 p-2 rounded-full border border-white/20 backdrop-blur-md" onSubmit={e => e.preventDefault()}>
               <input type="email" placeholder="Nhập địa chỉ email của bạn" className="flex-1 px-6 py-4 rounded-full text-sm font-medium focus:outline-none bg-transparent text-white placeholder-slate-300" />
               <button type="submit" className="px-8 py-4 rounded-full text-sm font-bold uppercase tracking-widest text-[#0A192F] whitespace-nowrap bg-gradient-to-r from-[#D4AF37] to-[#e8c84a] hover:scale-105 transition-transform">
+                <Link 
+                to="/signup" 
+                className="flex items-center gap-2">
                 Đăng Ký
+                <ChevronRight className="w-4 h-4" />
+                </Link>
               </button>
             </form>
           </div>

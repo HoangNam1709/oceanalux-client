@@ -54,8 +54,11 @@ export function Layout() {
               <Link to="/search" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
                 Du Thuyền
               </Link>
-              <Link to="/search" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
+              <Link to="/offers" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
                 Ưu Đãi
+              </Link>
+              <Link to="/about" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
+                Về Chúng Tôi
               </Link>
               {/* PHÂN QUYỀN ADMIN THẬT */}
               {userData?.role === 'admin' && (
@@ -79,7 +82,6 @@ export function Layout() {
                       <p className="text-sm font-bold text-slate-700 leading-none">{userData?.name}</p>
                     </div>
                     
-                    {/* ĐÃ FIX: Sửa to="/" thành to="/dashboard" */}
                     <Link
                       to="/dashboard"
                       className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all border border-slate-200"
@@ -87,7 +89,6 @@ export function Layout() {
                       <User className="w-5 h-5" />
                     </Link>
 
-                    {/* NÚT ĐĂNG XUẤT */}
                     <button 
                       onClick={handleLogout}
                       className="p-2 text-slate-400 hover:text-red-500 transition-colors"
@@ -234,13 +235,18 @@ export function Layout() {
                 className="bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-md w-full focus:outline-none focus:border-[#D4AF37] text-sm"
               />
               <button className="bg-[#D4AF37] text-[#0A192F] px-4 py-2 rounded-md font-medium hover:bg-[#D4AF37]/90 transition-colors text-sm shrink-0">
+               <Link 
+                to="/signup" 
+                className="flex items-center gap-2"
+              >
                 Đăng Ký
+              </Link>
               </button>
             </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-slate-800 text-sm text-center text-slate-500">
-          © {new Date().getFullYear()} OceanaLux Cruises. Bảo lưu mọi quyền.
+          © {new Date().getFullYear()} NamOcen Cruises. Bảo lưu mọi quyền.
         </div>
       </footer>
     </div>

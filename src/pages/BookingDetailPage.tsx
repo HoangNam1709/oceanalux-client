@@ -111,8 +111,6 @@ export function BookingDetailPage() {
                 <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-[#0A192F]/60 hover:text-[#0A192F] mb-6 transition-colors font-bold">
                     <ArrowLeft className="w-5 h-5" /> Bảng điều khiển
                 </button>
-
-                {/* GẮN REF VÀO ĐÂY ĐỂ BÁO CHO THƯ VIỆN BIẾT CẦN CHỤP KHU VỰC NÀY */}
                 <motion.div ref={ticketRef} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-[#D4AF37]/30">
                     
                     <div className={`p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isPaid ? 'bg-[#0A192F]' : isCancelled ? 'bg-[#0A192F]/60' : 'bg-[#D4AF37] text-[#0A192F]'}`}>
@@ -147,7 +145,7 @@ export function BookingDetailPage() {
                                 <div className="grid grid-cols-2 gap-4 mt-6">
                                     <div className="bg-[#F8F9FA] p-4 rounded-xl border border-gray-100">
                                         <div className="flex items-center gap-2 text-gray-500 mb-1 text-sm"><Calendar className="w-4 h-4 text-[#D4AF37]" /> Khởi hành</div>
-                                        <div className="font-bold text-[#0A192F]">{booking?.schedule?.departure_time ? new Date(booking.schedule.departure_time).toLocaleDateString('vi-VN') : 'Đang cập nhật'}</div>
+                                        <div className="font-bold text-[#0A192F]">{booking?.schedule?.departure_date ? new Date(booking.schedule.departure_date).toLocaleDateString('vi-VN') : 'Đang cập nhật'}</div>
                                     </div>
                                     <div className="bg-[#F8F9FA] p-4 rounded-xl border border-gray-100">
                                         <div className="flex items-center gap-2 text-gray-500 mb-1 text-sm"><Users className="w-4 h-4 text-[#D4AF37]" /> Hạng phòng</div>
@@ -179,7 +177,7 @@ export function BookingDetailPage() {
                             </section>
                         </div>
 
-                        {/* Phần Sidebar Phải (Được đặt data-html2canvas-ignore nếu không muốn in một số nút) */}
+                        {/* Phần Sidebar Phải */}
                         <div className="w-full md:w-80 p-8 bg-[#F8F9FA] flex flex-col items-center justify-center text-center relative">
                             <div className="hidden md:block absolute -left-4 top-1/2 w-8 h-8 bg-[#F8F9FA] rounded-full border-r-2 border-gray-200"></div>
 

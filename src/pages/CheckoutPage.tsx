@@ -76,7 +76,7 @@ export function CheckoutPage() {
                     setCabinData(cabin);
                     setBookingId(oldBooking.id);
                     
-                    // 👉 TỐI ƯU 1: KHÓA CHẾT ĐỒNG HỒ DỰA VÀO HOLD_EXPIRES_AT
+                    // TỐI ƯU 1: KHÓA CHẾT ĐỒNG HỒ DỰA VÀO HOLD_EXPIRES_AT
                     if (oldBooking.hold_expires_at) {
                         const expireTimeStr = oldBooking.hold_expires_at.replace(' ', 'T'); // Fix lỗi iOS/Safari
                         const expiresAt = new Date(expireTimeStr).getTime();
