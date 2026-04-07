@@ -63,7 +63,6 @@ export function CruiseDetailPage() {
   if (loading) return <div className="p-20 text-center text-xl font-serif text-slate-800">Đang chuẩn bị hành trình 5 sao...</div>;
   if (!cruise) return <div className="p-20 text-center text-xl text-red-500">Không tìm thấy du thuyền.</div>;
 
-  // Tính giá thấp nhất (Đảm bảo dùng đúng tên trường 'price' từ API)
   const basePrice = cruise.cabin_classes?.length > 0 
     ? Math.min(...cruise.cabin_classes.map((c: any) => c.price || 0)) 
     : 0;
@@ -82,7 +81,7 @@ export function CruiseDetailPage() {
         <div className="absolute bottom-0 w-full p-8 md:p-16 max-w-7xl mx-auto">
           <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
             <div className="flex items-center gap-3 text-amber-400 font-semibold text-sm uppercase tracking-widest mb-2">
-              <MapPin className="w-4 h-4" /> Vịnh Hạ Long, Việt Nam
+            <MapPin className="w-4 h-4" /> {cruise.destination  || "Vịnh Hạ Long"},Việt Nam 
             </div>
             <h1 className="text-4xl md:text-6xl font-serif font-bold text-white leading-tight">
               {cruise.name}
@@ -94,7 +93,7 @@ export function CruiseDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-amber-500" />
-                <span className="font-medium text-lg">3 Ngày / 2 Đêm</span>
+                <span className="font-medium text-lg"> {cruise.duration_days} Ngày / {cruise.duration_nights} Đêm</span>
               </div>
             </div>
           </motion.div>

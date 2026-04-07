@@ -69,7 +69,7 @@ export function Dashboard() {
   // USEMEMO TỰ ĐỘNG PHÂN LOẠI ĐƠN HÀNG DỰA TRÊN allBookings
   const upcomingBookings = useMemo(() => {
     return allBookings.filter((b: any) => 
-      ['confirmed', 'holding', 'paid'].includes(b.status)
+      ['completed', 'holding', 'paid'].includes(b.status)
     );
   }, [allBookings]);
 

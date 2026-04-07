@@ -379,9 +379,13 @@ function CabinModal({ cabin, cruiseName, onSave, onClose }: CabinModalProps) {
             <Field label="Còn trống">
               <input type="number" min={0} value={form.available} onChange={e => set("available", Number(e.target.value))} className={inputCls(false)} />
             </Field>
+            <Field label="Diện tích (m²)">
+              <input type="number" min={0} value={form.area} onChange={e => set("area", Number(e.target.value))} className={inputCls(false)} />
+            </Field>
+
           </div>
-          <Field label="Tiện nghi (phân cách bằng dấu phẩy)">
-            <input value={amenitiesText} onChange={e => setAmenitiesText(e.target.value)} placeholder="King Bed, Ocean View, Mini Bar..." className={inputCls(false)} />
+          <Field label="Tầng (phân cách bằng dấu phẩy)">
+            <input value={amenitiesText} onChange={e => setAmenitiesText(e.target.value)} placeholder="Tầng 1, Mũi tàu,..." className={inputCls(false)} />
           </Field>
           <Field label="URL ảnh phòng">
             <div className="space-y-2">
@@ -636,7 +640,6 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
             ? cruise.cabins.map(c => c.id === data.id ? { ...c, ...result.data } : c)
             : [...cruise.cabins, result.data];
           
-          // 💡 Tự động tìm giá phòng rẻ nhất để cập nhật làm "Giá khởi điểm" cho Tàu
           const newBasePrice = updatedCabins.length > 0 
             ? Math.min(...updatedCabins.map(c => c.pricePerNight)) 
             : 0;

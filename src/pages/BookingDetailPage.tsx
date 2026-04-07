@@ -100,7 +100,8 @@ export function BookingDetailPage() {
 
     const cruise = booking?.schedule?.cruise;
     const cabin = booking?.details?.[0]?.cabinClass || booking?.details?.[0]?.cabin_class;
-    const isPaid = booking.status === 'paid' || booking.status === 'completed';
+    const isCompleted = booking.status === 'completed';
+    const isPaid = booking.status === 'paid' ;
     const isHolding = booking.status === 'holding';
     const isCancelled = booking.status === 'cancelled';
 
@@ -116,13 +117,14 @@ export function BookingDetailPage() {
                     <div className={`p-8 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isPaid ? 'bg-[#0A192F]' : isCancelled ? 'bg-[#0A192F]/60' : 'bg-[#D4AF37] text-[#0A192F]'}`}>
                         <div>
                             <h1 className="text-3xl font-serif font-bold mb-2">
-                                {isPaid ? 'Vé Điện Tử VIP' : isHolding ? 'Đơn Đặt Chỗ OceanaLux' : 'Đơn Hàng Đã Hủy'}
+                                {isCompleted ? 'Đơn hàng đã hoàn thành' : isPaid ? 'Vé Điện Tử VIP' : isHolding ? 'Đơn Đặt Chỗ OceanaLux' : 'Đơn Hàng Đã Hủy'}
                             </h1>
                             <p className="flex items-center gap-2 opacity-90">
                                 Mã đặt chỗ: <span className={`font-mono font-bold px-3 py-1 rounded tracking-widest ${isPaid ? 'bg-white/20' : isCancelled ? 'bg-white/20' : 'bg-[#0A192F] text-white'}`}>{booking.booking_code}</span>
                             </p>
                         </div>
                         <div className={`flex items-center gap-2 px-5 py-2 rounded-full font-bold shadow-sm ${isPaid ? 'bg-[#D4AF37] text-[#0A192F]' : isHolding ? 'bg-[#0A192F] text-white' : 'bg-white/90 text-[#0A192F]/70'}`}>
+                            {isCompleted && <><CheckCircle2 className="w-5 h-5" /> Hoàn Thành</>}
                             {isPaid && <><CheckCircle2 className="w-5 h-5" /> Đã Thanh Toán</>}
                             {isHolding && <><Clock className="w-5 h-5 animate-pulse" /> Chờ Thanh Toán</>}
                             {isCancelled && <><XCircle className="w-5 h-5" /> Đã Hủy</>}
@@ -185,7 +187,8 @@ export function BookingDetailPage() {
                                 <QRCodeSVG value={`OCEANALUX-${booking.booking_code}-${booking.id}`} size={160} level="H" includeMargin={true} fgColor="#0A192F" />
                             </div>
 
-                            {!isPaid && !isCancelled && <p className="text-sm text-[#0A192F] font-bold mb-4 bg-[#D4AF37]/20 py-2 px-4 rounded-lg">Mã QR khả dụng sau thanh toán</p>}
+                            {!isCompleted && !isPaid && !isCancelled && <p className="text-sm text-[#0A192F] font-bold mb-4 bg-[#D4AF37]/20 py-2 px-4 rounded-lg">Mã QR khả dụng sau thanh toán</p>}
+                            {isCompleted && <p className="text-sm text-[#0A192F] font-bold mb-4 bg-[#D4AF37]/20 py-2 px-4 rounded-lg">Cảm ơn bạn đã đồng hành cùng OceanaLux!</p>}
                             {isCancelled && <p className="text-sm text-[#0A192F]/60 font-bold mb-4 bg-gray-200 py-2 px-4 rounded-lg">Đơn hàng không còn hiệu lực</p>}
 
                             <div className="w-full mb-6">
