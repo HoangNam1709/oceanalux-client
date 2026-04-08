@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { CreditCard, Wallet, ShieldCheck, CheckCircle, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { echo } from "../echo";
-
+import { toast } from "react-hot-toast";
 export function CheckoutPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
     // 1. Khai báo các State
-    const cruiseId = searchParams.get("cruise");
-    const cabinId = searchParams.get("cabin");
+    const cruiseId = searchParams.get("cruiseId");
+    const cabinId = searchParams.get("cabinId");
+    const scheduleId = searchParams.get('scheduleId');
     const { bookingId: paramBookingId } = useParams();
     const guests = Number(searchParams.get("guests")) || 2; 
 
@@ -23,16 +24,28 @@ export function CheckoutPage() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
-
+    const [showConflictModal, setShowConflictModal] = useState(false);
+    const [conflictData, setConflictData] = useState<any>(null);
     const [addons, setAddons] = useState({
         insurance: false,
         wifi: false,
         beverage: false
     });
 
-    // 2. TÍNH TOÁN GIÁ TIỀN
-    const { basePrice, taxes, addonPrices, totalAddons, totalAmount } = useMemo(() => {
-        const base = Number(cabinData?.price) || 0; 
+    // 2. TÍNH TOÁN GIÁ TIỀN (ĐÃ THÊM LOGIC PHỤ THU EXTRA BED)
+    const { basePrice, taxes, addonPrices, totalAddons, totalAmount, isSurcharged } = useMemo(() => {
+        const originalPrice = Number(cabinData?.price) || 0; 
+        const capacity = Number(cabinData?.capacity) || 2; 
+        
+        let finalBasePrice = originalPrice;
+        let surcharged = false;
+
+        // KIỂM TRA NẾU VƯỢT QUÁ SỐ NGƯỜI TIÊU CHUẨN (Nhưng nằm trong ngưỡng +2)
+        if (guests > capacity && guests <= capacity + 2) {
+            finalBasePrice = originalPrice * 1.15; // Tăng 15%
+            surcharged = true;
+        }
+
         const taxAmount = 500000 * guests;
         
         const prices = {
@@ -47,11 +60,12 @@ export function CheckoutPage() {
             (addons.beverage ? prices.beverage : 0);
 
         return {
-            basePrice: base,
+            basePrice: finalBasePrice, // Sử dụng giá đã cộng phụ thu
             taxes: taxAmount,
             addonPrices: prices,
             totalAddons: totalAddon,
-            totalAmount: base + taxAmount + totalAddon
+            totalAmount: finalBasePrice + taxAmount + totalAddon,
+            isSurcharged: surcharged // Gửi cờ này ra ngoài để hiện thông báo
         };
     }, [cabinData, addons, guests]);
 
@@ -76,9 +90,8 @@ export function CheckoutPage() {
                     setCabinData(cabin);
                     setBookingId(oldBooking.id);
                     
-                    // TỐI ƯU 1: KHÓA CHẾT ĐỒNG HỒ DỰA VÀO HOLD_EXPIRES_AT
                     if (oldBooking.hold_expires_at) {
-                        const expireTimeStr = oldBooking.hold_expires_at.replace(' ', 'T'); // Fix lỗi iOS/Safari
+                        const expireTimeStr = oldBooking.hold_expires_at.replace(' ', 'T'); 
                         const expiresAt = new Date(expireTimeStr).getTime();
                         const now = new Date().getTime();
                         const remaining = Math.floor((expiresAt - now) / 1000);
@@ -86,26 +99,25 @@ export function CheckoutPage() {
                         if (remaining > 0) {
                             setTimeLeft(remaining); 
                         } else {
-                            alert("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
+                            toast.error("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
                             navigate('/dashboard');
                         }
                     } else {
-                        // Backup nếu API không trả về hold_expires_at
                         const backupRemaining = Math.floor(Number(oldBooking.remaining_seconds));
                         if(backupRemaining > 0) setTimeLeft(backupRemaining);
                         else {
-                            alert("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
+                            toast.error("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
                             navigate('/dashboard');
                         }
                     }
                 } else {
-                    alert("Dữ liệu đơn hàng cũ bị thiếu thông tin Tàu hoặc Phòng!");
+                    toast.error("Dữ liệu đơn hàng cũ bị thiếu thông tin Tàu hoặc Phòng!");
                     navigate('/dashboard');
                 }
             })
             .catch(err => {
                 console.error("Lỗi lấy đơn hàng cũ:", err);
-                alert("Đơn hàng không tồn tại hoặc đã hết hạn!");
+                toast.error("Đơn hàng không tồn tại hoặc đã hết hạn!");
                 navigate('/dashboard');
             });
             
@@ -120,11 +132,11 @@ export function CheckoutPage() {
         axios.get(`http://localhost/api/cruises/${cruiseId}`)
             .then(res => {
                 setCruiseData(res.data.data);
-                const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);
+                const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);        
                 setCabinData(cabin);
                 
                 return axios.post('http://localhost/api/bookings/hold', {
-                    schedule_id: 1, 
+                    schedule_id: scheduleId, 
                     cabin_class_id: cabinId,
                     quantity: 1,
                     guests: guests 
@@ -133,23 +145,60 @@ export function CheckoutPage() {
                 });
             })
             .then(holdRes => {
-                setBookingId(holdRes.data.data.booking_id);
-                // Ép kiểu và làm tròn khi tạo mới
-                setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
+                // Kiểm tra nếu Backend báo có đơn cũ thì bật Popup
+                if (holdRes.data.status === 'require_confirmation') {
+                    setConflictData(holdRes.data.data);
+                    setShowConflictModal(true);
+                } 
+                // Nếu thành công thì mới thiết lập đồng hồ
+                else if (holdRes.data.status === 'success') {
+                    setBookingId(holdRes.data.data.booking_id);
+                    setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
+                }
             })
             .catch(err => {
                 console.error("Lỗi giữ phòng:", err);
+                // Nếu lỗi do hết phòng, backend sẽ trả về status 400
+                if(err.response?.data?.message) {
+                    toast.error(err.response.data.message);
+                }
                 navigate('/');
             });
-    }, [cruiseId, cabinId, guests, paramBookingId, navigate]);
+    }, [cruiseId, cabinId, guests, scheduleId, paramBookingId, navigate]);
 
-    // 4. useEffect 2: WEBSOCKET
+    // 4. HÀM XỬ LÝ LỰA CHỌN TRONG POPUP XUNG ĐỘT
+    const handleHoldRoom = (forceCancel = false) => { 
+        axios.post('http://localhost/api/bookings/hold', {
+            schedule_id: scheduleId,
+            cabin_class_id: cabinId,
+            quantity: 1,
+            guests: guests,
+            force_cancel_old: forceCancel 
+        }, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        })
+        .then(res => {
+            if (res.data.status === 'success') {
+                // Kích hoạt đồng hồ và mã booking mới
+                setBookingId(res.data.data.booking_id);
+                setTimeLeft(Math.floor(Number(res.data.data.remaining_seconds)));
+                console.log("Đã hủy đơn cũ và giữ chỗ mới thành công!");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            toast.error("Có lỗi xảy ra khi tạo đơn hàng mới.");
+            navigate('/');
+        });
+    };
+
+    // 5. useEffect 2: WEBSOCKET
     useEffect(() => {
         if (!bookingId) return;
         const channel = echo.channel(`booking.${bookingId}`);
 
         channel.listen('.BookingExpired', () => {
-            alert("Thời gian giữ chỗ đã hết!");
+            toast.error("Thời gian giữ chỗ đã hết!");
             navigate('/dashboard');
         });
 
@@ -162,38 +211,34 @@ export function CheckoutPage() {
         };
     }, [bookingId, navigate]);
 
-    // 5. useEffect 3: ĐẾM NGƯỢC (ĐÃ ĐƯỢC TỐI ƯU CHỐNG LEAK MEMORY)
+    // 6. useEffect 3: ĐẾM NGƯỢC
     useEffect(() => {
-        // Nếu chưa có thời gian, không làm gì cả
         if (timeLeft === null) return;
         
-        // Nếu hết giờ, thông báo và điều hướng NGAY LẬP TỨC
         if (timeLeft <= 0) {
-            alert("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
+            toast.error("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
             navigate('/dashboard');
             return;
         }
 
-        // Thiết lập bộ đếm lùi mỗi giây
         const timerId = setInterval(() => {
             setTimeLeft(prev => {
                 if (prev === null || prev <= 1) {
-                    clearInterval(timerId); // Dừng Interval ngay khi về 0
+                    clearInterval(timerId); 
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
 
-        // Cleanup function: Xóa timer khi component bị unmount (chuyển trang)
         return () => clearInterval(timerId);
     }, [timeLeft, navigate]);
 
-    // 6. XỬ LÝ THANH TOÁN
+    // 7. XỬ LÝ THANH TOÁN
     const handlePayment = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!bookingId) {
-            alert("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
+            toast.error("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
             return;
         }
 
@@ -219,7 +264,7 @@ export function CheckoutPage() {
             }
         } catch (error: any) {
             console.error('Lỗi thanh toán:', error);
-            alert(error.response?.data?.message || 'Giao dịch bị từ chối. Vui lòng thử lại!');
+            toast.error(error.response?.data?.message || 'Giao dịch bị từ chối. Vui lòng thử lại!');
             setIsProcessing(false);
         }
     };
@@ -259,6 +304,68 @@ export function CheckoutPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 relative">
+            {/* MODAL CẢNH BÁO TRÙNG ĐƠN HÀNG LÊN TRÊN CÙNG */}
+            {showConflictModal && conflictData && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>
+                    <div className="absolute top-0 left-0 w-full h-2 bg-amber-500 animate-slide">
+                        <button
+        onClick={() => setShowConflictModal(false)}
+        className="absolute top-4 right-4 z-10 
+                   w-10 h-10 flex items-center justify-center
+                   rounded-full 
+                   bg-white/80 backdrop-blur-sm
+                   text-[#8B1E3F] 
+                   shadow-md
+                   hover:bg-[#8B1E3F] hover:text-amber-400
+                   transition-all duration-300"
+    >
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+        >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+
+</div>
+                    <h3 className="text-2xl font-bold text-[#0A192F] mb-3 font-serif">Phát hiện Đơn hàng chờ!</h3>
+                    <p className="text-slate-600 mb-8 leading-relaxed">
+                    Hệ thống ghi nhận bạn đang có 1 đơn giữ phòng vào ngày <strong className="text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                        {conflictData.old_date ? new Date(conflictData.old_date).toLocaleDateString('vi-VN') : 'khác'}
+                    </strong> chưa được hoàn tất. Bạn muốn xử lý thế nào?
+                    </p>
+                    
+                    <div className="flex flex-col gap-3">
+                    <button
+                        onClick={() => {
+                            setShowConflictModal(false);
+                            // Gọi reload lại URL với ID cũ để đi thẳng vào đơn cũ
+                            window.location.href = `/checkout?cruiseId=${searchParams.get('cruiseId')}&cabinId=${conflictData.old_cabin_id}&scheduleId=${conflictData.old_schedule_id}`;
+                        }}
+                        className="w-full py-4 bg-[#0A192F] text-amber-400 font-bold rounded-xl hover:bg-slate-800 transition shadow-md"
+                    >
+                        Tiếp tục thanh toán đơn cũ
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setShowConflictModal(false);
+                            handleHoldRoom(true); 
+                        }}
+                        className="w-full py-4 bg-[#F8F9FA] text-amber-400 font-bold rounded-xl hover:bg-[#741934] transition border border-[#8B1E3F]"
+                    >
+                        Hủy đơn cũ & Đặt phòng mới
+                    </button>
+                    </div>
+                </div>
+                </div>
+            )}
+
             {/* THANH ĐẾM NGƯỢC */}
             <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-0 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
                 <Clock className="w-5 h-5 animate-pulse" />
@@ -341,12 +448,6 @@ export function CheckoutPage() {
                                         <div className="flex items-center gap-3"><CreditCard className="w-6 h-6 text-slate-600" /> <span className="font-bold text-slate-900">Thẻ Tín Dụng Quốc Tế</span></div>
                                     </div>
                                 </label>
-                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <input type="radio" name="payment" value="cash" checked={paymentMethod === 'cash'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-green-500" />
-                                        <div className="flex items-center gap-3"><ShieldCheck className="w-6 h-6 text-green-600" /> <span className="font-bold text-slate-900">Thanh toán tiền mặt (Test Mode)</span></div>
-                                    </div>
-                                </label>
                             </div>
                             <button type="submit" disabled={isProcessing} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-all shadow-xl disabled:opacity-70 flex items-center justify-center gap-2">
                                 {isProcessing ? (
@@ -372,7 +473,7 @@ export function CheckoutPage() {
                                 <div>
                                     <h4 className="font-bold text-white leading-tight mb-1">{cruiseData.name}</h4>
                                     <div className="text-xs text-amber-500 font-semibold uppercase">{cabinData.name}</div>
-                                    <div className="text-xs text-slate-400 mt-1">3 Ngày 2 Đêm • {guests} Khách</div>
+                                    <div className="text-xs text-slate-400 mt-1">{cruiseData.duration_days || 3} Ngày {cruiseData.duration_nights || 2} Đêm • {guests} Khách</div>
                                 </div>
                             </div>
                             <div className="space-y-3 pt-6 border-t border-slate-800">
@@ -380,6 +481,12 @@ export function CheckoutPage() {
                                     <span className="text-slate-400">Giá phòng ({guests} Khách)</span>
                                     <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(basePrice)}</span>
                                 </div>
+                                {/* MỚI THÊM: HIỆN THÔNG BÁO PHỤ THU NẾU CÓ */}
+                                {isSurcharged && (
+                                    <div className="text-[11px] text-amber-500 italic text-right mt-1">
+                                        *Đã bao gồm 15% phụ thu ở ghép
+                                    </div>
+                                )}
                                 <div className="flex justify-between text-sm">
                                     <span className="text-slate-400 flex items-center gap-1">Thuế & Phí Cảng</span>
                                     <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(taxes)}</span>

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, X, MessageSquare, Send } from "lucide-react";
 import axios from "axios";
-
+import { toast } from "react-hot-toast";
 export function ReviewModal({ isOpen, onClose, booking, onSuccess }: any) {
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
@@ -26,12 +26,12 @@ export function ReviewModal({ isOpen, onClose, booking, onSuccess }: any) {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      alert("Cảm ơn bạn đã đánh giá chuyến đi!");
+      toast.success("Cảm ơn bạn đã đánh giá chuyến đi!");
       onSuccess(booking.id); // Gọi hàm update lại UI ở Dashboard
       onClose(); // Đóng modal
     } catch (error) {
       console.error("Lỗi gửi đánh giá:", error);
-      alert("Có lỗi xảy ra, vui lòng thử lại sau!");
+      toast.error("Có lỗi xảy ra, vui lòng thử lại sau!");
     } finally {
       setIsSubmitting(false);
     }

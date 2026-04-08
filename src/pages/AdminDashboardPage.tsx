@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 // ─── Types ────────────────────────────────────────────────────────────────────
 type AdminTab = "overview" | "bookings" | "cruises" | "cabins" | "accounts"; // 👈 Đổi profile thành accounts
 
@@ -249,7 +250,7 @@ function AccountModal({ account, onSave, onClose }: { account: Account | null; o
   const [form, setForm] = useState<any>(initialData);
   const [showPassword, setShowPassword] = useState(false);
   const handleSave = () => {
-    if (!form.name || !form.email || (!isEdit && !form.password)) return alert("Vui lòng điền các trường bắt buộc!");
+    if (!form.name || !form.email || (!isEdit && !form.password)) return toast.error("Vui lòng điền các trường bắt buộc!");
     onSave(form);
   };
 
@@ -539,7 +540,7 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
 
   } catch (error) {
     console.error("Lỗi cập nhật trạng thái:", error);
-    alert("Không thể cập nhật trạng thái. Vui lòng kiểm tra lại Backend!");
+    toast.error("Không thể cập nhật trạng thái. Vui lòng kiểm tra lại Backend!");
   } finally {
     setUpdatingId(null);
   }
@@ -576,11 +577,11 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
         }
         setCruiseModal(null);
       } else {
-        alert("Có lỗi xảy ra: " + result.message);
+        toast.error("Có lỗi xảy ra: " + result.message);
       }
     } catch (error) {
       console.error("Lỗi khi lưu:", error);
-      alert("Lỗi kết nối đến Server!");
+      toast.error("Lỗi kết nối đến Server!");
     }
   };
 
@@ -604,11 +605,11 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
         setCruises(prev => prev.filter(c => c.id !== deleteCruise.id));
         setDeleteCruise(null);
       } else {
-        alert("Không thể xóa: " + result.message);
+        toast.error("Không thể xóa: " + result.message);
       }
     } catch (error) {
       console.error("Lỗi khi xóa:", error);
-      alert("Lỗi kết nối đến Server!");
+      toast.error("Lỗi kết nối đến Server!");
     }
   };
 
@@ -648,11 +649,11 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
         }));      
         setCabinModal(null);
       } else {
-        alert("Có lỗi xảy ra: " + result.message);
+        toast.error("Có lỗi xảy ra: " + result.message);
       }
     } catch (error) {
       console.error("Lỗi khi lưu phòng:", error);
-      alert("Lỗi kết nối Server!");
+      toast.error("Lỗi kết nối Server!");
     }
   };
 
@@ -675,7 +676,7 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
           // Xóa phòng khỏi mảng
           const updatedCabins = cruise.cabins.filter(c => c.id !== deleteCabin.id);
           
-          // 💡 Tự động cập nhật lại giá Tàu sau khi xóa
+          // Tự động cập nhật lại giá Tàu sau khi xóa
           const newBasePrice = updatedCabins.length > 0 
             ? Math.min(...updatedCabins.map(c => c.pricePerNight)) 
             : 0;
@@ -687,7 +688,7 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
       }
     } catch (error) {
       console.error("Lỗi khi xóa phòng:", error);
-      alert("Lỗi kết nối Server!");
+      toast.error("Lỗi kết nối Server!");
     }
   };
   // ── Đã nối dây API: LƯU TÀI KHOẢN ──
@@ -707,8 +708,8 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
       if (result.status === "success") {
         setAccounts(prev => isEdit ? prev.map(a => a.id === data.id ? result.data : a) : [result.data, ...prev]);
         setAccountModal(null);
-        alert(isEdit ? "Cập nhật tài khoản thành công!" : "Đã tạo tài khoản mới!");
-      } else alert("Lỗi: " + result.message);
+        toast.success(isEdit ? "Cập nhật tài khoản thành công!" : "Đã tạo tài khoản mới!");
+      } else toast.error("Lỗi: " + result.message);
     } catch (error) { console.error(error); }
   };
 
@@ -1395,7 +1396,7 @@ const handleUpdateStatus = async (bookingId: string, newStatus: BookingStatus) =
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Thông tin khách</div>
                     <div className="flex flex-col gap-1"><span className="text-xs text-slate-500">Họ và tên</span><span className="text-sm font-bold text-[#0A192F]">{selectedBooking.guestName}</span></div>
                     <div className="flex flex-col gap-1"><span className="text-xs text-slate-500">Email</span><span className="text-sm font-bold text-[#0A192F]">{selectedBooking.guestEmail}</span></div>
-                    <div className="flex flex-col gap-1"><span className="text-xs text-slate-500">Số lượng</span><span className="text-sm font-bold text-[#0A192F]">{selectedBooking.guests} hành khách</span></div>
+                    <div className="flex flex-col gap-1"><span className="text-xs text-slate-500">Số lượng</span><span className="text-sm font-bold text-[#0A192F]">{selectedBooking.guests||2} hành khách</span></div>
                   </div>
                   <div className="bg-slate-50 rounded-xl p-4 space-y-3">
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Thông tin chuyến đi</div>

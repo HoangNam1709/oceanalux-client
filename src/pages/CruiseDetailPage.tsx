@@ -1,11 +1,158 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom"; 
-import { Star, MapPin, Clock, ShieldCheck, Check, Anchor, Info, Calendar as CalIcon, MessageSquare } from "lucide-react";
+// Đã thêm ChevronLeft, ChevronRight vào danh sách import
+import { 
+  Star, MapPin, Clock, ShieldCheck, Check, Anchor, 
+  Info, Calendar as CalIcon, MessageSquare, ChevronLeft, ChevronRight ,Users, Minus, Plus
+} from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
-import { CabinCard } from "./CabinCard"; // Đảm bảo file này nằm cùng thư mục
+import { CabinCard } from "./CabinCard"; 
 import { echo } from "../echo"; 
+import { toast } from "react-hot-toast";
+// ==========================================
+// COMPONENT: TỜ LỊCH
+// ==========================================
+const ScheduleCalendar = ({ 
+  schedules, 
+  selectedId, 
+  onSelect, 
+  durationDays = 1 
+}: { 
+  schedules: any[], 
+  selectedId: any, 
+  onSelect: (id: any) => void,
+  durationDays?: number
+}) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
 
+  const availableSchedules = useMemo(() => {
+    if (!schedules) return {};
+    return schedules.reduce((acc: Record<string, number>, sch: any) => {
+      const rawDate = sch.departure_time || sch.departure_date;
+      if (rawDate) {
+        const dateObj = new Date(rawDate.replace(' ', 'T'));
+        const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+        acc[dateStr] = sch.id;
+      }
+      return acc;
+    }, {});
+  }, [schedules]);
+
+  const { selectedStartTime, selectedEndTime } = useMemo(() => {
+    if (!selectedId || !schedules) return { selectedStartTime: null, selectedEndTime: null };
+    
+    const sch = schedules.find(s => s.id === selectedId);
+    if (!sch) return { selectedStartTime: null, selectedEndTime: null };
+    
+    const rawDate = sch.departure_time || sch.departure_date;
+    const startObj = new Date(rawDate.replace(' ', 'T'));
+    const startDate = new Date(startObj.getFullYear(), startObj.getMonth(), startObj.getDate());
+    
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + (durationDays - 1));
+
+    return {
+      selectedStartTime: startDate.getTime(),
+      selectedEndTime: endDate.getTime()
+    };
+  }, [selectedId, schedules, durationDays]);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+  const blanks = Array.from({ length: firstDay }, (_, i) => i);
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  return (
+    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-lg mb-6">
+      {/* HEADER LỊCH */}
+      <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-50">
+        <button onClick={prevMonth} className="p-2 bg-slate-50 hover:bg-[#0A192F] hover:text-white rounded-lg text-slate-500 transition-colors shadow-sm">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="font-bold text-[#0A192F] text-lg font-serif">
+          Tháng {month + 1}, {year}
+        </div>
+        <button onClick={nextMonth} className="p-2 bg-slate-50 hover:bg-[#0A192F] hover:text-white rounded-lg text-slate-500 transition-colors shadow-sm">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* THỨ TRONG TUẦN */}
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-wider font-bold text-slate-400 mb-3">
+        {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map(d => <div key={d}>{d}</div>)}
+      </div>
+
+      {/* CÁC NGÀY TRONG THÁNG */}
+      <div className="grid grid-cols-7 gap-y-2">
+        {blanks.map(b => <div key={`blank-${b}`} className="h-10"></div>)}
+        {days.map(day => {
+          const checkDate = new Date(year, month, day);
+          const checkTime = checkDate.getTime();
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          
+          const scheduleId = availableSchedules[dateStr];
+          const isDeparture = !!scheduleId;
+          
+          let isSelectedStart = false;
+          let isSelectedEnd = false;
+          let isInSelectedRange = false;
+
+          if (selectedStartTime && selectedEndTime) {
+            if (checkTime === selectedStartTime) isSelectedStart = true;
+            if (checkTime === selectedEndTime) isSelectedEnd = true;
+            if (checkTime > selectedStartTime && checkTime < selectedEndTime) isInSelectedRange = true;
+          }
+
+          // XÂY DỰNG STYLE CHUẨN LUXURY THEME
+          let buttonClasses = "h-10 w-full text-sm font-medium transition-all flex items-center justify-center relative ";
+          let isDisabled = !isDeparture; 
+
+          if (isSelectedStart) {
+            // Ngày đi: Nền Navy, chữ Vàng (Khớp với nút bấm của bạn)
+            buttonClasses += "bg-[#0A192F] text-amber-400 shadow-md z-10 " + (durationDays > 1 ? "rounded-l-xl" : "rounded-xl");
+          } else if (isSelectedEnd) {
+            // Ngày về: Nền Navy, chữ Vàng
+            buttonClasses += "bg-[#0A192F] text-amber-400 shadow-md z-10 " + (durationDays > 1 ? "rounded-r-xl" : "rounded-xl");
+            if (isDeparture) buttonClasses += "cursor-pointer hover:bg-slate-800 ";
+          } else if (isInSelectedRange) {
+            // Ở giữa chuyến: Nền xám nhạt xanh
+            buttonClasses += "bg-slate-100 text-[#0A192F] font-semibold ";
+            if (isDeparture) buttonClasses += "cursor-pointer hover:bg-slate-200 border-y border-slate-200 ";
+          } else if (isDeparture) {
+            // Có tàu nhưng chưa chọn: Viền xám, hover lên viền vàng
+            buttonClasses += "bg-white text-slate-700 border border-slate-200 hover:border-amber-500 hover:text-amber-600 hover:shadow-sm cursor-pointer rounded-xl ";
+          } else {
+            // Không có tàu: Xám, mờ
+            buttonClasses += "bg-transparent text-slate-300 opacity-40 cursor-not-allowed rounded-xl ";
+          }
+
+          return (
+            <button
+              key={day}
+              disabled={isDisabled}
+              onClick={() => isDeparture && onSelect(scheduleId)}
+              className={buttonClasses}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+// ==========================================
+// COMPONENT CHÍNH: CHI TIẾT DU THUYỀN
+// ==========================================
 export function CruiseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate(); 
@@ -14,26 +161,32 @@ export function CruiseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-
-  // GỌI API LẤY DỮ LIỆU
+  const [selectedScheduleId, setSelectedScheduleId] = useState("");
+  const [guestCount, setGuestCount] = useState(2);
+  // 1. API: LẤY DỮ LIỆU BAN ĐẦU
   useEffect(() => {
     axios.get(`http://localhost/api/cruises/${id}`)
       .then(response => {
         setCruise(response.data.data);
-        setLoading(false);
       })
       .catch(error => {
         console.error("Lỗi lấy chi tiết tàu:", error);
-        setLoading(false);
-      });
+      })
+      .finally(() => setLoading(false)); // Tối ưu: Gộp tắt loading vào finally
   }, [id]);
 
-  // LOGIC REAL-TIME
+  // 2. SOCKET: LOGIC REAL-TIME 
   useEffect(() => {
-    if (!cruise || !echo) return;
+    // Nếu chưa có ID tàu hoặc chưa kết nối Echo thì bỏ qua
+    if (!cruise?.id || !echo) return;
 
     const channel = echo.channel('rooms')
       .listen('.RoomReleased', (e: any) => {
+        // Nếu sự kiện Real-time báo về mà không khớp với ID Lịch trình khách đang xem -> BỎ QUA NGAY!
+        if (e.schedule_id && String(e.schedule_id) !== String(selectedScheduleId)) {
+            return; 
+        }
+
         setCruise((prevCruise: any) => {
           if (!prevCruise) return prevCruise;
           return {
@@ -48,18 +201,54 @@ export function CruiseDetailPage() {
       });
 
     return () => { echo.leave('rooms'); };
-  }, [cruise]); 
+  }, [cruise?.id, selectedScheduleId]); // 
+  useEffect(() => {
+    if (!selectedScheduleId) return; // Nếu chưa chọn ngày thì thôi
 
+    // Gọi API để lấy số lượng phòng chuẩn xác cho ngày vừa chọn
+    axios.get(`http://localhost/api/schedules/${selectedScheduleId}/available-cabins`)
+      .then(response => {
+        // Cập nhật lại mảng cabin_classes trong state cruise
+        setCruise((prev: any) => ({
+          ...prev,
+          cabin_classes: response.data.data
+        }));
+      })
+      .catch(error => console.error("Lỗi cập nhật phòng:", error));
+
+  }, [selectedScheduleId]); // <-- Chạy lại hàm này mỗi khi biến này thay đổi
+  // 3. XỬ LÝ ĐẶT PHÒNG
   const handleBooking = (cabinId: number) => {
+    // TÌM XEM KHÁCH ĐANG BẤM VÀO PHÒNG NÀO ĐỂ LẤY SỨC CHỨA
+    const cabin = cruise.cabin_classes.find((c: any) => c.id === cabinId);
+    const capacity = cabin?.capacity || 2; 
+
+    // KIỂM TRA ĐIỀU KIỆN SỐ NGƯỜI
+    if (guestCount > capacity + 2) {
+        toast.error(`Rất tiếc! Phòng này chứa tiêu chuẩn ${capacity} khách. Tối đa chỉ cho phép ở ghép thêm 2 người (Tổng: ${capacity + 2}). Quý khách vui lòng đặt Hạng phòng lớn hơn hoặc chia làm nhiều phòng nhé!`);
+        return; // Chặn đứng tại đây, không cho đi tiếp
+    }
+
+    if (!selectedScheduleId) {
+        toast.error("Thuyền viên ơi, vui lòng chọn ngày khởi hành trên tờ lịch trước khi đặt phòng nhé!");
+        return;
+    }
+
     const token = localStorage.getItem('token'); 
+    
+    // Nối thêm số lượng khách vào URL
+    const checkoutUrl = `/checkout?cruiseId=${id}&cabinId=${cabinId}&scheduleId=${selectedScheduleId}&guests=${guestCount}`;
+
     if (!token) {
-      alert("Vui lòng đăng nhập để thực hiện đặt phòng!");
-      navigate(`/login?redirect=/checkout?cruise=${id}&cabin=${cabinId}`);
+      toast.error("Vui lòng đăng nhập để giữ chỗ!");
+      navigate(`/login?redirect=${encodeURIComponent(checkoutUrl)}`);
       return;
     }
-    navigate(`/checkout?cruise=${id}&cabin=${cabinId}`);
+
+    navigate(checkoutUrl);
   };
 
+  // 4. HIỂN THỊ LOADING & LỖI
   if (loading) return <div className="p-20 text-center text-xl font-serif text-slate-800">Đang chuẩn bị hành trình 5 sao...</div>;
   if (!cruise) return <div className="p-20 text-center text-xl text-red-500">Không tìm thấy du thuyền.</div>;
 
@@ -67,8 +256,9 @@ export function CruiseDetailPage() {
     ? Math.min(...cruise.cabin_classes.map((c: any) => c.price || 0)) 
     : 0;
 
+
   return (
-    // FIX 1: Thêm relative ở đây
+    // Thêm relative ở đây
     <div className="bg-slate-50 min-h-screen relative"> 
       {/* Hero Header */}
       <div className="relative h-[50vh] min-h-[400px] w-full bg-slate-900">
@@ -237,34 +427,118 @@ export function CruiseDetailPage() {
         </div>
 
         {/* Sidebar */}
+        {/* Sidebar */}
         <div className="lg:w-1/3">
-          <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 sticky top-32">
-            <h3 className="text-xl font-bold text-slate-900 mb-6 font-serif text-center">Tóm tắt hành trình</h3>
-            <div className="space-y-5 mb-8">
-              <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                <span className="text-slate-400">Giá thấp nhất từ</span>
-                <span className="text-2xl font-bold text-amber-600">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 lg:p-8 sticky top-28 flex flex-col gap-6">
+            
+            {/* 1. Khu vực Giá (Nổi bật nhất) */}
+            <div>
+              <h3 className="text-xl font-serif font-bold text-[#0A192F] mb-2">Hành trình của bạn</h3>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-amber-500">
                   {new Intl.NumberFormat('vi-VN').format(basePrice)}đ
                 </span>
-              </div>
-              <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                <span className="text-slate-400 text-sm">Thời lượng</span>
-                <span className="font-semibold text-slate-800">3 Ngày 2 Đêm</span>
-              </div>
-              <div className="flex justify-between items-center pb-4 border-b border-slate-50">
-                <span className="text-slate-400 text-sm">Điểm đi/về</span>
-                <span className="font-semibold text-slate-800 text-sm">Cảng Tuần Châu</span>
+                <span className="text-slate-500 text-sm font-medium">/ khách</span>
               </div>
             </div>
+
+            {/* 2. Tóm tắt thông tin cơ bản (Dữ liệu động) */}
+            <div className="space-y-4 py-4 border-y border-slate-100">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-amber-500" /> Thời lượng
+                </span>
+                <span className="font-semibold text-[#0A192F]">
+                  {cruise.duration_days} Ngày {cruise.duration_nights} Đêm
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 flex items-center gap-2 text-sm">
+                  <MapPin className="w-4 h-4 text-amber-500" /> Khởi hành
+                </span>
+                <span className="font-semibold text-[#0A192F] text-right max-w-[150px] truncate">
+                  {cruise.destination || "Vịnh Hạ Long"}
+                </span>
+              </div>
+            </div>
+
+            {/* 3. Tờ lịch chọn ngày */}
+            <div className="flex flex-col gap-3">
+              <label className="text-[#0A192F] font-bold flex items-center gap-2">
+                <CalIcon className="w-5 h-5 text-amber-500" /> Chọn ngày đi:
+              </label>
+              
+              <ScheduleCalendar 
+                schedules={cruise.schedules} 
+                selectedId={selectedScheduleId} 
+                onSelect={setSelectedScheduleId} 
+                durationDays={cruise.duration_days || 1} 
+              />
+
+              {/* MỚI THÊM: KHU VỰC CHỌN SỐ LƯỢNG KHÁCH */}
+              <div className="pt-2 pb-1 border-t border-slate-100">
+                <label className="text-[#0A192F] font-bold flex items-center gap-2 mb-3">
+                  <Users className="w-5 h-5 text-amber-500" /> Số lượng khách:
+                </label>
+                <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
+                  <button 
+                    onClick={() => setGuestCount(Math.max(1, guestCount - 1))} // Tối thiểu là 1 người
+                    className="p-3 bg-white rounded-lg shadow-sm text-slate-500 hover:text-amber-500 hover:border-amber-200 border border-transparent transition-all"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  
+                  <span className="font-bold text-[#0A192F] text-lg">
+                    {guestCount} <span className="text-sm font-medium text-slate-500">người</span>
+                  </span>
+                  
+                  <button 
+                    onClick={() => setGuestCount(Math.min(10, guestCount + 1))} // Tối đa giả sử là 10 người
+                    className="p-3 bg-white rounded-lg shadow-sm text-slate-500 hover:text-amber-500 hover:border-amber-200 border border-transparent transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Dòng nhắc nhở nếu khách chưa chọn ngày */}
+              {!selectedScheduleId && (
+                <p className="text-xs text-amber-600 font-medium italic text-center animate-pulse mt-2">
+                  * Vui lòng chọn ngày để xem giá và phòng trống
+                </p>
+              )}
+            </div>
+
+            {/* 4. Nút Call to Action (Xử lý thông minh) */}
             <button 
-              onClick={() => setActiveTab('cabins')}
-              className="w-full bg-[#0A192F] text-white py-4 rounded-2xl font-bold hover:bg-amber-500 hover:text-slate-900 transition-all shadow-lg flex items-center justify-center gap-2 group"
+              onClick={() => {
+                if (!selectedScheduleId) {
+                  toast.error("Thuyền viên ơi, vui lòng chọn ngày khởi hành trên tờ lịch trước nhé!");
+                  return;
+                }
+                setActiveTab('cabins');
+                // Code cuộn mượt xuống khu vực phòng (Tùy chọn)
+                window.scrollTo({ top: document.body.scrollHeight / 2, behavior: 'smooth' });
+              }}
+              className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg
+                ${selectedScheduleId 
+                  ? 'bg-[#0A192F] text-white hover:bg-amber-500 hover:text-slate-900 hover:shadow-amber-200 cursor-pointer' 
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                }
+              `}
             >
-              CHỌN PHÒNG NGAY <Anchor className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              {selectedScheduleId ? 'XEM PHÒNG TRỐNG' : 'CHỌN NGÀY ĐỂ TIẾP TỤC'} 
+              <Anchor className={`w-5 h-5 ${selectedScheduleId ? 'animate-bounce' : ''}`} />
             </button>
-            <p className="text-[10px] text-center text-slate-400 mt-4 leading-relaxed uppercase tracking-widest font-bold">
-              Cam kết giá tốt nhất • Thanh toán an toàn
-            </p>
+
+            {/* 5. Trust Badges */}
+            <div className="pt-2 border-t border-slate-50 flex flex-col items-center gap-2 text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+              <div className="flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-500" /> Thanh toán an toàn
+              </div>
+              <span>Cam kết giá tốt nhất hệ thống</span>
+            </div>
+
           </div>
         </div>
       </div>

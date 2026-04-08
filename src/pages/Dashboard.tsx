@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ReviewModal } from './ReviewModal';
-
+import { toast } from "react-hot-toast";
 export function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("bookings");
@@ -98,11 +98,11 @@ export function Dashboard() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      alert("Cập nhật thông tin thành công!");
+      toast.success("Cập nhật thông tin thành công!");
       setUser(res.data.user || res.data.data); 
     } catch (error) {
       console.error("Lỗi cập nhật profile:", error);
-      alert("Có lỗi xảy ra khi cập nhật!");
+      toast.error("Có lỗi xảy ra khi cập nhật!");
     } finally {
       setIsUpdating(false);
     }
@@ -252,7 +252,6 @@ export function Dashboard() {
                                     const checkoutUrl = `/checkout/payment/${booking.id}?cruise=${cruiseId}&cabin=${cabinId}`;
                                     navigate(checkoutUrl);
                                   } catch (err) {
-                                    alert("Đã xảy ra lỗi hệ thống, không thể chuyển trang!");
                                   }
                                 }} 
                                 className="flex-1 bg-amber-500 text-slate-900 py-3 rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm"

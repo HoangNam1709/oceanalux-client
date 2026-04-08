@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Calendar, Users, Ship, CheckCircle2, Clock, XCircle, Download } from "lucide-react";
 import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
-
+import { toast } from "react-hot-toast";
 
 export function BookingDetailPage() {
     const { id } = useParams();
@@ -27,7 +27,7 @@ export function BookingDetailPage() {
             const res = await axios.get(`http://localhost/api/bookings/${id}`, { headers: { Authorization: `Bearer ${token}` } });
             setBooking(res.data.data);
         } catch (error) {
-            alert("Không tìm thấy đơn hàng!");
+            toast.error("Không tìm thấy đơn hàng!");
             navigate('/dashboard');
         } finally {
             setLoading(false);
@@ -40,10 +40,10 @@ export function BookingDetailPage() {
         try {
             const token = localStorage.getItem("token");
             await axios.post(`http://localhost/api/bookings/${id}/cancel`, {}, { headers: { Authorization: `Bearer ${token}` } });
-            alert("Hủy chuyến đi thành công!");
+            toast.success("Hủy chuyến đi thành công!");
             fetchBookingDetail(); 
         } catch (error: any) {
-            alert(error.response?.data?.message || "Lỗi khi hủy đơn hàng");
+            toast.error(error.response?.data?.message || "Lỗi khi hủy đơn hàng");
         } finally {
             setIsCancelling(false);
         }
@@ -89,7 +89,7 @@ export function BookingDetailPage() {
             
         } catch (error) {
             console.error("Lỗi xuất PDF:", error);
-            alert("Đã xảy ra lỗi khi tạo file PDF. Vui lòng thử lại!");
+            toast.error("Đã xảy ra lỗi khi tạo file PDF. Vui lòng thử lại!");
         } finally {
             setIsDownloading(false);
         }

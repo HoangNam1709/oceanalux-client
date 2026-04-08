@@ -174,11 +174,6 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="mt-6 text-center">
-          <Link to="/admin" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-            Cổng thông tin quản trị →
-          </Link>
-        </div>
       </div>
     </div>
   );

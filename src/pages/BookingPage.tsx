@@ -3,7 +3,7 @@ import { useParams, useSearchParams, useNavigate } from "react-router";
 import { Clock, Users, User, Mail, Phone, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { mockCruises } from "./data/mockData";
 import { motion, AnimatePresence } from "motion/react";
-
+import { toast } from "react-hot-toast";
 export function BookingPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -32,7 +32,7 @@ export function BookingPage() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          alert("Your session has expired.");
+          toast.error("Your session has expired.");
           navigate(`/cruise/${id}`);
           return 0;
         }

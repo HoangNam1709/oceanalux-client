@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { Ship, User, Menu, Bell, Shield, LogOut } from "lucide-react";
-
+import { Ship, User, Menu, Bell, Shield, LogOut, X } from "lucide-react";
+import { Toaster } from 'react-hot-toast';
 export function Layout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 1. CHUYỂN STATE MÔ PHỎNG THÀNH STATE THẬT
+  // 1. STATE THẬT
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userData, setUserData] = useState<{ name: string; role: string } | null>(null);
 
-  // 2. KIỂM TRA TRẠNG THÁI ĐĂNG NHẬP KHI TRANG LOAD
+  // 2. KIỂM TRA TRẠNG THÁI ĐĂNG NHẬP
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
@@ -27,12 +27,14 @@ export function Layout() {
     localStorage.removeItem("user");
     setIsAuthenticated(false);
     setUserData(null);
+    setIsMobileMenuOpen(false); // Đóng menu mobile nếu đang mở
     navigate("/");
-    window.location.reload(); // Reload để đảm bảo các component khác cập nhật lại state sạch
+    window.location.reload();
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans text-slate-800">
+      <Toaster position="top-right" reverseOrder={false}  />
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
@@ -48,27 +50,20 @@ export function Layout() {
 
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
-                Trang Chủ
-              </Link>
-              <Link to="/search" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
-                Du Thuyền
-              </Link>
-              <Link to="/offers" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
-                Ưu Đãi
-              </Link>
-              <Link to="/about" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">
-                Về Chúng Tôi
-              </Link>
+              <Link to="/" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">Trang Chủ</Link>
+              <Link to="/search" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">Du Thuyền</Link>
+              <Link to="/offers" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">Ưu Đãi</Link>
+              <Link to="/about" className="text-sm font-medium text-slate-600 hover:text-[#D4AF37] transition-colors">Về Chúng Tôi</Link>
+              
               {/* PHÂN QUYỀN ADMIN THẬT */}
               {userData?.role === 'admin' && (
-                <Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors">
-                  Quản Trị Hệ Thống
+                <Link to="/admin" className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1">
+                  <Shield className="w-4 h-4" /> Quản Trị Hệ Thống
                 </Link>
               )}
             </nav>
 
-            {/* User Actions */}
+            {/* User Actions (Desktop) */}
             <div className="hidden md:flex items-center gap-4">
               {isAuthenticated ? (
                 <>
@@ -110,25 +105,53 @@ export function Layout() {
 
             {/* Mobile Menu Button */}
             <button className="md:hidden p-2 text-slate-600" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-              <Menu className="w-6 h-6" />
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Nav (Đã cập nhật logic auth) */}
+        {/* Mobile Nav */}
         {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-100 bg-white animate-in slide-in-from-top duration-300">
-            <div className="px-4 pt-2 pb-6 space-y-1">
-              {/* ... (Các link trang chủ, điểm đến giữ nguyên) */}
+          <div className="md:hidden border-t border-slate-100 bg-white animate-in slide-in-from-top duration-300 shadow-xl absolute w-full">
+            <div className="px-4 pt-4 pb-6 space-y-2">
+              <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-lg">Trang Chủ</Link>
+              <Link to="/search" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-lg">Du Thuyền</Link>
+              <Link to="/offers" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-lg">Ưu Đãi</Link>
+              <Link to="/about" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-lg">Về Chúng Tôi</Link>
               
               {isAuthenticated ? (
-                <div className="pt-4 mt-4 border-t border-slate-100">
-                  <div className="px-3 py-2 text-sm font-bold text-slate-400 uppercase">Tài khoản: {userData?.name}</div>
-                  <Link to="/dashboard" className="block px-3 py-2 text-slate-900 font-medium">Bảng điều khiển</Link>
-                  <button onClick={handleLogout} className="block w-full text-left px-3 py-2 text-red-500 font-bold font-medium">Đăng xuất</button>
+                <div className="pt-4 mt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-3 px-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 uppercase font-bold leading-none mb-1">Thành viên</p>
+                      <p className="text-sm font-bold text-slate-900 leading-none">{userData?.name}</p>
+                    </div>
+                  </div>
+                  
+                  <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-slate-700 font-medium hover:bg-slate-50 rounded-lg">
+                    Bảng điều khiển
+                  </Link>
+
+                  {/* ADMIN LINK TRÊN MOBILE */}
+                  {userData?.role === 'admin' && (
+                    <Link to="/admin" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-3 text-amber-600 font-bold hover:bg-amber-50 rounded-lg flex items-center gap-2">
+                      <Shield className="w-4 h-4" /> Quản Trị Hệ Thống
+                    </Link>
+                  )}
+
+                  <button onClick={handleLogout} className="block w-full text-left px-3 py-3 text-red-500 font-bold hover:bg-red-50 rounded-lg flex items-center gap-2">
+                    <LogOut className="w-4 h-4" /> Đăng xuất
+                  </button>
                 </div>
               ) : (
-                <Link to="/login" className="block px-3 py-2 text-amber-600 font-bold">Đăng Nhập</Link>
+                <div className="pt-4 mt-2 border-t border-slate-100">
+                  <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center px-6 py-3 bg-[#0A192F] text-white rounded-xl hover:bg-amber-500 hover:text-[#0A192F] transition-all font-bold">
+                    Đăng Nhập
+                  </Link>
+                </div>
               )}
             </div>
           </div>
@@ -138,93 +161,40 @@ export function Layout() {
       <main className="flex-1">
         <Outlet />
       </main>
+
       <footer className="bg-[#0A192F] text-slate-300 py-12 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Ship className="w-6 h-6 text-[#D4AF37]" />
-              <span className="text-lg font-bold text-white uppercase">
-                OceanaLux
-              </span>
+              <span className="text-lg font-bold text-white uppercase">OceanaLux</span>
             </div>
             <p className="text-sm text-slate-400">
               Kiến tạo những chuyến hải trình sang trọng bậc nhất thế giới từ năm 2004.
             </p>
           </div>
+          
           <div>
-            <h4 className="text-white font-semibold mb-4">
-              Khám Phá
-            </h4>
+            <h4 className="text-white font-semibold mb-4">Khám Phá</h4>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Vịnh Hạ Long
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Đảo Phú Quốc
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Vịnh Lan Hạ
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Hải Trình Xuyên Á
-                </Link>
-              </li>
+              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Hạ Long</Link></li>
+              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Đảo Phú Quốc</Link></li>
+              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Lan Hạ</Link></li>
+              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Hải Trình Xuyên Á</Link></li>
             </ul>
           </div>
+          
           <div>
-            <h4 className="text-white font-semibold mb-4">
-              Hỗ Trợ
-            </h4>
+            <h4 className="text-white font-semibold mb-4">Hỗ Trợ</h4>
             <ul className="space-y-2 text-sm">
-              <li>
-                <a
-                  href="#"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Liên Hệ
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Câu Hỏi Thường Gặp
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Quản Lý Đặt Phòng
-                </a>
-              </li>
+              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Liên Hệ</a></li>
+              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Câu Hỏi Thường Gặp</a></li>
+              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Quản Lý Đặt Phòng</a></li>
             </ul>
           </div>
+          
           <div>
-            <h4 className="text-white font-semibold mb-4">
-              Bản Tin
-            </h4>
+            <h4 className="text-white font-semibold mb-4">Bản Tin</h4>
             <p className="text-sm text-slate-400 mb-4">
               Đăng ký để nhận ưu đãi và tin tức độc quyền mới nhất.
             </p>
@@ -234,14 +204,13 @@ export function Layout() {
                 placeholder="Email của bạn"
                 className="bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-md w-full focus:outline-none focus:border-[#D4AF37] text-sm"
               />
-              <button className="bg-[#D4AF37] text-[#0A192F] px-4 py-2 rounded-md font-medium hover:bg-[#D4AF37]/90 transition-colors text-sm shrink-0">
-               <Link 
+              {/* ĐÃ SỬA: Đổi button bọc Link thành thẻ Link chuẩn */}
+              <Link 
                 to="/signup" 
-                className="flex items-center gap-2"
+                className="bg-[#D4AF37] text-[#0A192F] px-4 py-2 rounded-md font-bold hover:bg-[#D4AF37]/90 transition-colors text-sm shrink-0 flex items-center justify-center"
               >
                 Đăng Ký
               </Link>
-              </button>
             </div>
           </div>
         </div>
