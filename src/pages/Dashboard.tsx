@@ -131,7 +131,7 @@ export function Dashboard() {
             <div className="text-center md:text-left">
               <h1 className="text-3xl font-serif font-bold text-white mb-2">Xin chào, {user?.name || "Khách Hàng"}</h1>
               <div className="flex items-center justify-center md:justify-start gap-4 text-sm text-slate-400">
-                <span className="flex items-center gap-1"><Ship className="w-4 h-4 text-amber-500" /> Thành viên OceanaLux</span>
+                <span className="flex items-center gap-1"><Ship className="w-4 h-4 text-amber-500" /> Thành viên NamOcen</span>
                 <span className="w-1 h-1 bg-slate-600 rounded-full"></span>
                 <span>Tham gia: {new Date(user?.created_at || Date.now()).getFullYear()}</span>
               </div>

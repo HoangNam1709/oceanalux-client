@@ -55,7 +55,7 @@ export function LoginPage() {
               <Ship className="w-6 h-6" />
             </div>
             <span className="text-2xl font-bold tracking-tight text-[#0A192F] uppercase">
-              Oceana<span className="text-[#D4AF37]">Lux</span>
+              Nam<span className="text-[#D4AF37]">Ocen</span>
             </span>
           </Link>
           <h1 className="text-3xl font-light text-[#0A192F] mb-2">Chào mừng quý khách</h1>

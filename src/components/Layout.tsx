@@ -163,61 +163,72 @@ export function Layout() {
       </main>
 
       <footer className="bg-[#0A192F] text-slate-300 py-12 border-t border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+    
+    {/* Cột 1: Thông tin thương hiệu */}
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Ship className="w-6 h-6 text-[#D4AF37]" />
+        <span className="text-lg font-bold text-white uppercase">NamOcen</span>
+      </div>
+      <p className="text-sm text-slate-400">
+        Kiến tạo những chuyến hải trình sang trọng bậc nhất thế giới từ năm 2004.
+      </p>
+    </div>
+    
+    {/* Cột 2: Khám Phá */}
+    <div>
+      <h4 className="text-white font-semibold mb-4">Khám Phá</h4>
+      <ul className="space-y-2 text-sm">
+        <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Hạ Long</Link></li>
+        <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Đảo Phú Quốc</Link></li>
+        <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Lan Hạ</Link></li>
+        <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Hải Trình Xuyên Á</Link></li>
+      </ul>
+    </div>
+    
+    {/* Cột 3: Hỗ Trợ */}
+    <div>
+      <h4 className="text-white font-semibold mb-4">Hỗ Trợ</h4>
+      <ul className="space-y-2 text-sm">
+        <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Liên Hệ</a></li>
+        <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Câu Hỏi Thường Gặp</a></li>
+        <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Quản Lý Đặt Phòng</a></li>
+      </ul>
+    </div>
+    
+    {/* Cột 4: Theo dõi chúng tôi - ĐÃ CẬP NHẬT VỚI ICON */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Ship className="w-6 h-6 text-[#D4AF37]" />
-              <span className="text-lg font-bold text-white uppercase">OceanaLux</span>
-            </div>
-            <p className="text-sm text-slate-400">
-              Kiến tạo những chuyến hải trình sang trọng bậc nhất thế giới từ năm 2004.
-            </p>
-          </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Khám Phá</h4>
+            <h4 className="text-white font-semibold mb-4">Theo dõi chúng tôi trên</h4>
             <ul className="space-y-2 text-sm">
-              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Hạ Long</Link></li>
-              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Đảo Phú Quốc</Link></li>
-              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Vịnh Lan Hạ</Link></li>
-              <li><Link to="/search" className="hover:text-[#D4AF37] transition-colors">Hải Trình Xuyên Á</Link></li>
+              <li>
+                <a href="https://www.facebook.com/" target="_blank" rel="noopener noreferrer" className="hover:text-[#D4AF37] transition-colors flex items-center gap-2">
+                  <img src="public\icon\facebook.png" alt="Facebook" className="w-5 h-5" /> 
+                  <span>Facebook</span>
+                </a>
+              </li>
+              <li>
+                <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer" className="hover:text-[#D4AF37] transition-colors flex items-center gap-2">
+                  <img src="public\icon\instagram_2111421.png" className="w-5 h-5" /> 
+                  <span>Instagram</span>
+                </a>
+              </li>
+              <li>
+                <a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer" className="hover:text-[#D4AF37] transition-colors flex items-center gap-2">
+                  <img src="public\icon\tik-tok.png" alt="TikTok" className="w-5 h-5" /> {/* Thay đường dẫn ảnh thực tế */}
+                  <span>TikTok</span>
+                </a>
+              </li>
             </ul>
           </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Hỗ Trợ</h4>
-            <ul className="space-y-2 text-sm">
-              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Liên Hệ</a></li>
-              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Câu Hỏi Thường Gặp</a></li>
-              <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Quản Lý Đặt Phòng</a></li>
-            </ul>
-          </div>
-          
-          <div>
-            <h4 className="text-white font-semibold mb-4">Bản Tin</h4>
-            <p className="text-sm text-slate-400 mb-4">
-              Đăng ký để nhận ưu đãi và tin tức độc quyền mới nhất.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Email của bạn"
-                className="bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-md w-full focus:outline-none focus:border-[#D4AF37] text-sm"
-              />
-              {/* ĐÃ SỬA: Đổi button bọc Link thành thẻ Link chuẩn */}
-              <Link 
-                to="/signup" 
-                className="bg-[#D4AF37] text-[#0A192F] px-4 py-2 rounded-md font-bold hover:bg-[#D4AF37]/90 transition-colors text-sm shrink-0 flex items-center justify-center"
-              >
-                Đăng Ký
-              </Link>
-            </div>
-          </div>
+
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-slate-800 text-sm text-center text-slate-500">
-          © {new Date().getFullYear()} NamOcen Cruises. Bảo lưu mọi quyền.
-        </div>
-      </footer>
+  
+  {/* Dòng bản quyền */}
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-slate-800 text-sm text-center text-slate-500">
+    © {new Date().getFullYear()} NamOcen Cruises. Bảo lưu mọi quyền.
+  </div>
+</footer>
     </div>
   );
 }
