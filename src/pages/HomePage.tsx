@@ -354,8 +354,9 @@ export function HomePage() {
                   <input
                     type="number"
                     min="1"
+                    max="20"
                     placeholder="Thêm khách"
-                    value={guests || 1}
+                    value={guests}
                     onChange={(e) => setGuests(e.target.value)}
                     className="w-full text-sm font-semibold text-[#0A192F] focus:outline-none bg-transparent placeholder-slate-400 truncate"
                   />

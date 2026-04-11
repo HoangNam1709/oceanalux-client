@@ -513,17 +513,39 @@ export function CruiseDetailPage() {
                 animate={{ opacity: 1 }}
                 className="space-y-8"
               >
-                <h3 className="text-2xl font-serif font-bold text-slate-900">
-                  Chọn không gian nghỉ dưỡng
-                </h3>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <h3 className="text-2xl font-serif font-bold text-slate-900">
+                    Chọn không gian nghỉ dưỡng
+                  </h3>
+                  
+                  {/* Lời nhắc nhẹ nhàng (Tuỳ chọn) */}
+                  {!selectedScheduleId && (
+                    <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-200 flex items-center gap-3">
+                      <Info className="w-4 h-4" />
+                      <span>Chọn ngày khởi hành để xem phòng trống chính xác</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* LUÔN HIỂN THỊ DANH SÁCH PHÒNG */}
                 <div className="grid gap-8">
-                  {cruise.cabin_classes?.map((cabin: any) => (
-                    <CabinCard
-                      key={cabin.id}
-                      cabin={cabin}
-                      onBooking={handleBooking}
-                    />
-                  ))}
+                  {cruise.cabin_classes?.map((cabin: any) => {
+                    // TRICK: Nếu chưa chọn ngày, lấy total_rooms làm số lượng hiển thị
+                    const displayCabin = {
+                      ...cabin,
+                      available_rooms: selectedScheduleId 
+                        ? cabin.available_rooms 
+                        : (cabin.total_rooms || 0) // Tránh undefined nếu API chưa có total_rooms
+                    };
+
+                    return (
+                      <CabinCard
+                        key={cabin.id}
+                        cabin={displayCabin}
+                        onBooking={handleBooking}
+                      />
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
