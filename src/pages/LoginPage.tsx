@@ -6,17 +6,17 @@ import axios from "axios";
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   // Lấy đường dẫn cần quay lại sau khi login (Ví dụ: quay lại trang Checkout)
   const redirectPath = searchParams.get("redirect") || "/";
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const [formData, setFormData] = useState({
     email: "",
-    password: ""
+    password: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,20 +26,25 @@ export function LoginPage() {
 
     try {
       // 1. Gửi yêu cầu đăng nhập đến Laravel
-      const response = await axios.post("http://localhost/api/login", formData);
+      const response = await axios.post(
+        "http://localhost:8081/api/login",
+        formData,
+      );
 
       if (response.data.status === "success") {
         // 2. Lưu Token và thông tin User vào localStorage
         localStorage.setItem("token", response.data.access_token);
         localStorage.setItem("user", JSON.stringify(response.data.user));
-        
+
         // 3. Điều hướng về trang trước đó (ví dụ Checkout) hoặc Dashboard
         // Sử dụng window.location để force reload toàn bộ app, cập nhật lại trạng thái Auth ở Layout
         window.location.href = redirectPath;
       }
     } catch (err: any) {
       // Xử lý lỗi từ Server trả về (ví dụ sai pass, email không tồn tại)
-      setError(err.response?.data?.message || "Thông tin đăng nhập không chính xác.");
+      setError(
+        err.response?.data?.message || "Thông tin đăng nhập không chính xác.",
+      );
     } finally {
       setLoading(false);
     }
@@ -58,8 +63,12 @@ export function LoginPage() {
               Nam<span className="text-[#D4AF37]">Ocen</span>
             </span>
           </Link>
-          <h1 className="text-3xl font-light text-[#0A192F] mb-2">Chào mừng quý khách</h1>
-          <p className="text-slate-600">Đăng nhập để bắt đầu hành trình nghỉ dưỡng</p>
+          <h1 className="text-3xl font-light text-[#0A192F] mb-2">
+            Chào mừng quý khách
+          </h1>
+          <p className="text-slate-600">
+            Đăng nhập để bắt đầu hành trình nghỉ dưỡng
+          </p>
         </div>
 
         {/* Login Form */}
@@ -74,7 +83,10 @@ export function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Địa chỉ Email
               </label>
               <div className="relative">
@@ -85,7 +97,9 @@ export function LoginPage() {
                   required
                   disabled={loading}
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
                   placeholder="name@example.com"
                   className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A192F] focus:border-transparent disabled:bg-slate-50"
                 />
@@ -94,7 +108,10 @@ export function LoginPage() {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-slate-700 mb-2"
+              >
                 Mật khẩu
               </label>
               <div className="relative">
@@ -105,7 +122,9 @@ export function LoginPage() {
                   required
                   disabled={loading}
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
                   placeholder="Nhập mật khẩu của bạn"
                   className="w-full pl-12 pr-12 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A192F] focus:border-transparent disabled:bg-slate-50"
                 />
@@ -114,7 +133,11 @@ export function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -126,9 +149,14 @@ export function LoginPage() {
                   type="checkbox"
                   className="w-4 h-4 text-[#0A192F] border-slate-300 rounded focus:ring-[#0A192F]"
                 />
-                <span className="ml-2 text-sm text-slate-600">Ghi nhớ đăng nhập</span>
+                <span className="ml-2 text-sm text-slate-600">
+                  Ghi nhớ đăng nhập
+                </span>
               </label>
-              <Link to="/forgot-password" className="text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-[#D4AF37] hover:text-[#D4AF37]/80 transition-colors"
+              >
                 Quên mật khẩu?
               </Link>
             </div>
@@ -156,24 +184,28 @@ export function LoginPage() {
               <div className="w-full border-t border-slate-200"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-slate-500">Hoặc tiếp tục với</span>
+              <span className="px-4 bg-white text-slate-500">
+                Hoặc tiếp tục với
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-             {/* Social buttons giữ nguyên... */}
+            {/* Social buttons giữ nguyên... */}
           </div>
 
           <div className="mt-8 text-center pt-6 border-t border-slate-100">
             <p className="text-sm text-slate-600">
               Quý khách chưa có tài khoản?{" "}
-              <Link to="/signup" className="text-[#D4AF37] hover:text-[#D4AF37]/80 font-bold transition-colors">
+              <Link
+                to="/signup"
+                className="text-[#D4AF37] hover:text-[#D4AF37]/80 font-bold transition-colors"
+              >
                 Đăng ký thành viên
               </Link>
             </p>
           </div>
         </div>
-
       </div>
     </div>
   );

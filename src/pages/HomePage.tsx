@@ -189,7 +189,7 @@ export function HomePage() {
   useEffect(() => {
     // Fetch dữ liệu tàu
     axios
-      .get("http://localhost/api/cruises")
+      .get("http://localhost:8081/api/cruises")
       .then((response) => {
         if (response.data && response.data.data) {
           setTrendingCruises(response.data.data);

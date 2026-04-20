@@ -1,318 +1,387 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
-import { CreditCard, Wallet, ShieldCheck, CheckCircle, Clock } from "lucide-react";
+import {
+  CreditCard,
+  Wallet,
+  ShieldCheck,
+  CheckCircle,
+  Clock,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { echo } from "../echo";
 import { toast } from "react-hot-toast";
 export function CheckoutPage() {
-    const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-    // 1. Khai báo các State
-    const cruiseId = searchParams.get("cruiseId");
-    const cabinId = searchParams.get("cabinId");
-    const scheduleId = searchParams.get('scheduleId');
-    const { bookingId: paramBookingId } = useParams();
-    const guests = Number(searchParams.get("guests")) || 2; 
+  // 1. Khai báo các State
+  const cruiseId = searchParams.get("cruiseId");
+  const cabinId = searchParams.get("cabinId");
+  const scheduleId = searchParams.get("scheduleId");
+  const { bookingId: paramBookingId } = useParams();
+  const guests = Number(searchParams.get("guests")) || 2;
 
-    const [cruiseData, setCruiseData] = useState<any>(null);
-    const [cabinData, setCabinData] = useState<any>(null);
-    const [bookingId, setBookingId] = useState<number | null>(paramBookingId ? Number(paramBookingId) : null);
+  const [cruiseData, setCruiseData] = useState<any>(null);
+  const [cabinData, setCabinData] = useState<any>(null);
+  const [bookingId, setBookingId] = useState<number | null>(
+    paramBookingId ? Number(paramBookingId) : null,
+  );
 
-    const [paymentMethod, setPaymentMethod] = useState("vnpay");
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
-    const [timeLeft, setTimeLeft] = useState<number | null>(null);
-    const [showConflictModal, setShowConflictModal] = useState(false);
-    const [conflictData, setConflictData] = useState<any>(null);
-    const [addons, setAddons] = useState({
-        insurance: false,
-        wifi: false,
-        beverage: false
-    });
+  const [paymentMethod, setPaymentMethod] = useState("vnpay");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictData, setConflictData] = useState<any>(null);
+  const [addons, setAddons] = useState({
+    insurance: false,
+    wifi: false,
+    beverage: false,
+  });
 
-    // 2. TÍNH TOÁN GIÁ TIỀN (ĐÃ THÊM LOGIC PHỤ THU EXTRA BED)
-    const { basePrice, taxes, addonPrices, totalAddons, totalAmount, isSurcharged } = useMemo(() => {
-        const originalPrice = Number(cabinData?.price) || 0; 
-        const capacity = Number(cabinData?.capacity) || 2; 
-        
-        let finalBasePrice = originalPrice;
-        let surcharged = false;
+  // 2. TÍNH TOÁN GIÁ TIỀN (ĐÃ THÊM LOGIC PHỤ THU EXTRA BED)
+  const {
+    basePrice,
+    taxes,
+    addonPrices,
+    totalAddons,
+    totalAmount,
+    isSurcharged,
+  } = useMemo(() => {
+    const originalPrice = Number(cabinData?.price) || 0;
+    const capacity = Number(cabinData?.capacity) || 2;
 
-        // KIỂM TRA NẾU VƯỢT QUÁ SỐ NGƯỜI TIÊU CHUẨN (Nhưng nằm trong ngưỡng +2)
-        if (guests > capacity && guests <= capacity + 2) {
-            finalBasePrice = originalPrice * 1.15; // Tăng 15%
-            surcharged = true;
-        }
+    let finalBasePrice = originalPrice;
+    let surcharged = false;
 
-        const taxAmount = 500000 * guests;
-        
-        const prices = {
-            insurance: 250000 * guests,
-            wifi: 150000 * 3, 
-            beverage: 800000 * guests
-        };
+    // KIỂM TRA NẾU VƯỢT QUÁ SỐ NGƯỜI TIÊU CHUẨN (Nhưng nằm trong ngưỡng +2)
+    if (guests > capacity && guests <= capacity + 2) {
+      finalBasePrice = originalPrice * 1.15; // Tăng 15%
+      surcharged = true;
+    }
 
-        const totalAddon = 
-            (addons.insurance ? prices.insurance : 0) +
-            (addons.wifi ? prices.wifi : 0) +
-            (addons.beverage ? prices.beverage : 0);
+    const taxAmount = 500000 * guests;
 
-        return {
-            basePrice: finalBasePrice, // Sử dụng giá đã cộng phụ thu
-            taxes: taxAmount,
-            addonPrices: prices,
-            totalAddons: totalAddon,
-            totalAmount: finalBasePrice + taxAmount + totalAddon,
-            isSurcharged: surcharged // Gửi cờ này ra ngoài để hiện thông báo
-        };
-    }, [cabinData, addons, guests]);
+    const prices = {
+      insurance: 250000 * guests,
+      wifi: 150000 * 3,
+      beverage: 800000 * guests,
+    };
 
-    // 3. useEffect 1: GỌI API GIỮ PHÒNG HOẶC PHỤC HỒI ĐƠN CŨ
-    useEffect(() => {
-        const token = localStorage.getItem('token');
+    const totalAddon =
+      (addons.insurance ? prices.insurance : 0) +
+      (addons.wifi ? prices.wifi : 0) +
+      (addons.beverage ? prices.beverage : 0);
 
-        // ==========================================
-        // NGÃ RẼ 1: KHÁCH CŨ QUAY LẠI THANH TOÁN
-        // ==========================================
-        if (paramBookingId) {
-            axios.get(`http://localhost/api/bookings/${paramBookingId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            })
-            .then(res => {
-                const oldBooking = res.data.data;
-                const cruise = oldBooking?.schedule?.cruise;
-                const cabin = oldBooking?.details?.[0]?.cabinClass || oldBooking?.details?.[0]?.cabin_class;
+    return {
+      basePrice: finalBasePrice, // Sử dụng giá đã cộng phụ thu
+      taxes: taxAmount,
+      addonPrices: prices,
+      totalAddons: totalAddon,
+      totalAmount: finalBasePrice + taxAmount + totalAddon,
+      isSurcharged: surcharged, // Gửi cờ này ra ngoài để hiện thông báo
+    };
+  }, [cabinData, addons, guests]);
 
-                if (cruise && cabin) {
-                    setCruiseData(cruise);
-                    setCabinData(cabin);
-                    setBookingId(oldBooking.id);
-                    
-                    if (oldBooking.hold_expires_at) {
-                        const expireTimeStr = oldBooking.hold_expires_at.replace(' ', 'T'); 
-                        const expiresAt = new Date(expireTimeStr).getTime();
-                        const now = new Date().getTime();
-                        const remaining = Math.floor((expiresAt - now) / 1000);
+  // 3. useEffect 1: GỌI API GIỮ PHÒNG HOẶC PHỤC HỒI ĐƠN CŨ
+  useEffect(() => {
+    const token = localStorage.getItem("token");
 
-                        if (remaining > 0) {
-                            setTimeLeft(remaining); 
-                        } else {
-                            toast.error("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
-                            navigate('/dashboard');
-                        }
-                    } else {
-                        const backupRemaining = Math.floor(Number(oldBooking.remaining_seconds));
-                        if(backupRemaining > 0) setTimeLeft(backupRemaining);
-                        else {
-                            toast.error("Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.");
-                            navigate('/dashboard');
-                        }
-                    }
-                } else {
-                    toast.error("Dữ liệu đơn hàng cũ bị thiếu thông tin Tàu hoặc Phòng!");
-                    navigate('/dashboard');
-                }
-            })
-            .catch(err => {
-                console.error("Lỗi lấy đơn hàng cũ:", err);
-                toast.error("Đơn hàng không tồn tại hoặc đã hết hạn!");
-                navigate('/dashboard');
-            });
-            
-            return; 
-        }
+    // ==========================================
+    // NGÃ RẼ 1: KHÁCH CŨ QUAY LẠI THANH TOÁN
+    // ==========================================
+    if (paramBookingId) {
+      axios
+        .get(`http://localhost:8081/api/bookings/${paramBookingId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        .then((res) => {
+          const oldBooking = res.data.data;
+          const cruise = oldBooking?.schedule?.cruise;
+          const cabin =
+            oldBooking?.details?.[0]?.cabinClass ||
+            oldBooking?.details?.[0]?.cabin_class;
 
-        // ==========================================
-        // NGÃ RẼ 2: KHÁCH MỚI TINH VÀO ĐẶT CHỖ
-        // ==========================================
-        if (!cruiseId || !cabinId) return;
+          if (cruise && cabin) {
+            setCruiseData(cruise);
+            setCabinData(cabin);
+            setBookingId(oldBooking.id);
 
-        axios.get(`http://localhost/api/cruises/${cruiseId}`)
-            .then(res => {
-                setCruiseData(res.data.data);
-                const cabin = res.data.data.cabin_classes.find((c: any) => c.id == cabinId);        
-                setCabinData(cabin);
-                
-                return axios.post('http://localhost/api/bookings/hold', {
-                    schedule_id: scheduleId, 
-                    cabin_class_id: cabinId,
-                    quantity: 1,
-                    guests: guests 
-                }, {
-                    headers: { Authorization: `Bearer ${token}` } 
-                });
-            })
-            .then(holdRes => {
-                // Kiểm tra nếu Backend báo có đơn cũ thì bật Popup
-                if (holdRes.data.status === 'require_confirmation') {
-                    setConflictData(holdRes.data.data);
-                    setShowConflictModal(true);
-                } 
-                // Nếu thành công thì mới thiết lập đồng hồ
-                else if (holdRes.data.status === 'success') {
-                    setBookingId(holdRes.data.data.booking_id);
-                    setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
-                }
-            })
-            .catch(err => {
-                console.error("Lỗi giữ phòng:", err);
-                // Nếu lỗi do hết phòng, backend sẽ trả về status 400
-                if(err.response?.data?.message) {
-                    toast.error(err.response.data.message);
-                }
-                navigate('/');
-            });
-    }, [cruiseId, cabinId, guests, scheduleId, paramBookingId, navigate]);
+            if (oldBooking.hold_expires_at) {
+              const expireTimeStr = oldBooking.hold_expires_at.replace(
+                " ",
+                "T",
+              );
+              const expiresAt = new Date(expireTimeStr).getTime();
+              const now = new Date().getTime();
+              const remaining = Math.floor((expiresAt - now) / 1000);
 
-    // 4. HÀM XỬ LÝ LỰA CHỌN TRONG POPUP XUNG ĐỘT
-    const handleHoldRoom = (forceCancel = false) => { 
-        axios.post('http://localhost/api/bookings/hold', {
+              if (remaining > 0) {
+                setTimeLeft(remaining);
+              } else {
+                toast.error(
+                  "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
+                );
+                navigate("/dashboard");
+              }
+            } else {
+              const backupRemaining = Math.floor(
+                Number(oldBooking.remaining_seconds),
+              );
+              if (backupRemaining > 0) setTimeLeft(backupRemaining);
+              else {
+                toast.error(
+                  "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
+                );
+                navigate("/dashboard");
+              }
+            }
+          } else {
+            toast.error(
+              "Dữ liệu đơn hàng cũ bị thiếu thông tin Tàu hoặc Phòng!",
+            );
+            navigate("/dashboard");
+          }
+        })
+        .catch((err) => {
+          console.error("Lỗi lấy đơn hàng cũ:", err);
+          toast.error("Đơn hàng không tồn tại hoặc đã hết hạn!");
+          navigate("/dashboard");
+        });
+
+      return;
+    }
+
+    // ==========================================
+    // NGÃ RẼ 2: KHÁCH MỚI TINH VÀO ĐẶT CHỖ
+    // ==========================================
+    if (!cruiseId || !cabinId) return;
+
+    axios
+      .get(`http://localhost:8081/api/cruises/${cruiseId}`)
+      .then((res) => {
+        setCruiseData(res.data.data);
+        const cabin = res.data.data.cabin_classes.find(
+          (c: any) => c.id == cabinId,
+        );
+        setCabinData(cabin);
+
+        return axios.post(
+          "http://localhost:8081/api/bookings/hold",
+          {
             schedule_id: scheduleId,
             cabin_class_id: cabinId,
             quantity: 1,
             guests: guests,
-            force_cancel_old: forceCancel 
-        }, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        })
-        .then(res => {
-            if (res.data.status === 'success') {
-                // Kích hoạt đồng hồ và mã booking mới
-                setBookingId(res.data.data.booking_id);
-                setTimeLeft(Math.floor(Number(res.data.data.remaining_seconds)));
-                console.log("Đã hủy đơn cũ và giữ chỗ mới thành công!");
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            toast.error("Có lỗi xảy ra khi tạo đơn hàng mới.");
-            navigate('/');
-        });
-    };
-
-    // 5. useEffect 2: WEBSOCKET
-    useEffect(() => {
-        if (!bookingId) return;
-        const channel = echo.channel(`booking.${bookingId}`);
-
-        channel.listen('.BookingExpired', () => {
-            toast.error("Thời gian giữ chỗ đã hết!");
-            navigate('/dashboard');
-        });
-
-        channel.listen('.TimerUpdated', (e: { remainingSeconds: number }) => {
-            setTimeLeft(Math.floor(Number(e.remainingSeconds)));
-        });
-
-        return () => {
-            echo.leaveChannel(`booking.${bookingId}`);
-        };
-    }, [bookingId, navigate]);
-
-    // 6. useEffect 3: ĐẾM NGƯỢC
-    useEffect(() => {
-        if (timeLeft === null) return;
-        
-        if (timeLeft <= 0) {
-            toast.error("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
-            navigate('/dashboard');
-            return;
-        }
-
-        const timerId = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev === null || prev <= 1) {
-                    clearInterval(timerId); 
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timerId);
-    }, [timeLeft, navigate]);
-
-    // 7. XỬ LÝ THANH TOÁN
-    const handlePayment = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!bookingId) {
-            toast.error("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
-            return;
-        }
-
-        setIsProcessing(true);
-
-        try {
-            const response = await axios.post('http://localhost/api/payment/create', {
-                booking_id: bookingId,
-                payment_method: paymentMethod,
-                amount: totalAmount, 
-                addons: addons, 
-                taxes: taxes 
-            });
-
-            if (response.data && response.data.checkoutUrl) {
-                localStorage.setItem('retryCheckoutUrl', window.location.pathname + window.location.search);
-                window.location.href = response.data.checkoutUrl;
-            } else {
-                setIsProcessing(false);
-                setIsSuccess(true);
-                localStorage.removeItem(`pending_booking_${cruiseId}_${cabinId}`);
-                setTimeout(() => navigate('/dashboard'), 3000);
-            }
-        } catch (error: any) {
-            console.error('Lỗi thanh toán:', error);
-            toast.error(error.response?.data?.message || 'Giao dịch bị từ chối. Vui lòng thử lại!');
-            setIsProcessing(false);
-        }
-    };
-
-    // Hàm format thời gian sạch sẽ
-    const formatTime = (seconds: number | null) => {
-        if (seconds === null || seconds <= 0) return "00:00";
-        const total = Math.floor(seconds);
-        const m = Math.floor(total / 60);
-        const s = total % 60;
-        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    };
-
-    // Render Loading
-    if (!cruiseData || !cabinData) {
-        return <div className="min-h-screen flex items-center justify-center text-xl font-serif text-slate-600">Đang thiết lập kênh thanh toán bảo mật...</div>;
-    }
-
-    if (isSuccess) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <CheckCircle className="w-10 h-10 text-green-500" />
-                    </div>
-                    <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">Đặt Phòng Thành Công!</h2>
-                    <p className="text-slate-600 mb-8">Kỳ nghỉ dưỡng xa hoa của quý khách đã được xác nhận. Email hướng dẫn chi tiết đã được gửi đi.</p>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8 text-left">
-                        <div className="text-sm text-slate-500 uppercase tracking-wider mb-1">Mã Chuyến Đi</div>
-                        <div className="font-mono font-bold text-xl text-slate-900">OCL-{bookingId}</div>
-                    </div>
-                    <p className="text-sm text-slate-500 animate-pulse">Đang chuyển hướng về Bảng điều khiển...</p>
-                </motion.div>
-            </div>
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         );
+      })
+      .then((holdRes) => {
+        // Kiểm tra nếu Backend báo có đơn cũ thì bật Popup
+        if (holdRes.data.status === "require_confirmation") {
+          setConflictData(holdRes.data.data);
+          setShowConflictModal(true);
+        }
+        // Nếu thành công thì mới thiết lập đồng hồ
+        else if (holdRes.data.status === "success") {
+          setBookingId(holdRes.data.data.booking_id);
+          setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
+        }
+      })
+      .catch((err) => {
+        console.error("Lỗi giữ phòng:", err);
+        // Nếu lỗi do hết phòng, backend sẽ trả về status 400
+        if (err.response?.data?.message) {
+          toast.error(err.response.data.message);
+        }
+        navigate("/");
+      });
+  }, [cruiseId, cabinId, guests, scheduleId, paramBookingId, navigate]);
+
+  // 4. HÀM XỬ LÝ LỰA CHỌN TRONG POPUP XUNG ĐỘT
+  const handleHoldRoom = (forceCancel = false) => {
+    axios
+      .post(
+        "http://localhost:8081/api/bookings/hold",
+        {
+          schedule_id: scheduleId,
+          cabin_class_id: cabinId,
+          quantity: 1,
+          guests: guests,
+          force_cancel_old: forceCancel,
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        },
+      )
+      .then((res) => {
+        if (res.data.status === "success") {
+          // Kích hoạt đồng hồ và mã booking mới
+          setBookingId(res.data.data.booking_id);
+          setTimeLeft(Math.floor(Number(res.data.data.remaining_seconds)));
+          console.log("Đã hủy đơn cũ và giữ chỗ mới thành công!");
+        }
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Có lỗi xảy ra khi tạo đơn hàng mới.");
+        navigate("/");
+      });
+  };
+
+  // 5. useEffect 2: WEBSOCKET
+  useEffect(() => {
+    if (!bookingId) return;
+    const channel = echo.channel(`booking.${bookingId}`);
+
+    channel.listen(".BookingExpired", () => {
+      toast.error("Thời gian giữ chỗ đã hết!");
+      navigate("/dashboard");
+    });
+
+    channel.listen(".TimerUpdated", (e: { remainingSeconds: number }) => {
+      setTimeLeft(Math.floor(Number(e.remainingSeconds)));
+    });
+
+    return () => {
+      echo.leaveChannel(`booking.${bookingId}`);
+    };
+  }, [bookingId, navigate]);
+
+  // 6. useEffect 3: ĐẾM NGƯỢC
+  useEffect(() => {
+    if (timeLeft === null) return;
+
+    if (timeLeft <= 0) {
+      toast.error("Đã hết thời gian giữ phòng! Đơn hàng của bạn đã bị hủy.");
+      navigate("/dashboard");
+      return;
     }
 
+    const timerId = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timerId);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timerId);
+  }, [timeLeft, navigate]);
+
+  // 7. XỬ LÝ THANH TOÁN
+  const handlePayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bookingId) {
+      toast.error("Chưa có mã đơn hàng hợp lệ. Vui lòng tải lại trang!");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const response = await axios.post(
+        "http://localhost:8081/api/payment/create",
+        {
+          booking_id: bookingId,
+          payment_method: paymentMethod,
+          amount: totalAmount,
+          addons: addons,
+          taxes: taxes,
+        },
+      );
+
+      if (response.data && response.data.checkoutUrl) {
+        localStorage.setItem(
+          "retryCheckoutUrl",
+          window.location.pathname + window.location.search,
+        );
+        window.location.href = response.data.checkoutUrl;
+      } else {
+        setIsProcessing(false);
+        setIsSuccess(true);
+        localStorage.removeItem(`pending_booking_${cruiseId}_${cabinId}`);
+        setTimeout(() => navigate("/dashboard"), 3000);
+      }
+    } catch (error: any) {
+      console.error("Lỗi thanh toán:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Giao dịch bị từ chối. Vui lòng thử lại!",
+      );
+      setIsProcessing(false);
+    }
+  };
+
+  // Hàm format thời gian sạch sẽ
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null || seconds <= 0) return "00:00";
+    const total = Math.floor(seconds);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // Render Loading
+  if (!cruiseData || !cabinData) {
     return (
-        <div className="min-h-screen bg-slate-50 relative">
-            {/* MODAL CẢNH BÁO TRÙNG ĐƠN HÀNG LÊN TRÊN CÙNG */}
-            {showConflictModal && conflictData && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>
-                    <div className="absolute top-0 left-0 w-full h-2 bg-amber-500 animate-slide">
-                        <button
-        onClick={() => setShowConflictModal(false)}
-        className="absolute top-4 right-4 z-10 
+      <div className="min-h-screen flex items-center justify-center text-xl font-serif text-slate-600">
+        Đang thiết lập kênh thanh toán bảo mật...
+      </div>
+    );
+  }
+
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center"
+        >
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-green-500" />
+          </div>
+          <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">
+            Đặt Phòng Thành Công!
+          </h2>
+          <p className="text-slate-600 mb-8">
+            Kỳ nghỉ dưỡng xa hoa của quý khách đã được xác nhận. Email hướng dẫn
+            chi tiết đã được gửi đi.
+          </p>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-8 text-left">
+            <div className="text-sm text-slate-500 uppercase tracking-wider mb-1">
+              Mã Chuyến Đi
+            </div>
+            <div className="font-mono font-bold text-xl text-slate-900">
+              OCL-{bookingId}
+            </div>
+          </div>
+          <p className="text-sm text-slate-500 animate-pulse">
+            Đang chuyển hướng về Bảng điều khiển...
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 relative">
+      {/* MODAL CẢNH BÁO TRÙNG ĐƠN HÀNG LÊN TRÊN CÙNG */}
+      {showConflictModal && conflictData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-amber-500"></div>
+            <div className="absolute top-0 left-0 w-full h-2 bg-amber-500 animate-slide">
+              <button
+                onClick={() => setShowConflictModal(false)}
+                className="absolute top-4 right-4 z-10 
                    w-10 h-10 flex items-center justify-center
                    rounded-full 
                    bg-white/80 backdrop-blur-sm
@@ -320,212 +389,399 @@ export function CheckoutPage() {
                    shadow-md
                    hover:bg-[#8B1E3F] hover:text-amber-400
                    transition-all duration-300"
-    >
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-        >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-    </button>
-
-</div>
-                    <h3 className="text-2xl font-bold text-[#0A192F] mb-3 font-serif">Phát hiện Đơn hàng chờ!</h3>
-                    <p className="text-slate-600 mb-8 leading-relaxed">
-                    Hệ thống ghi nhận bạn đang có 1 đơn giữ phòng vào ngày <strong className="text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                        {conflictData.old_date ? new Date(conflictData.old_date).toLocaleDateString('vi-VN') : 'khác'}
-                    </strong> chưa được hoàn tất. Bạn muốn xử lý thế nào?
-                    </p>
-                    
-                    <div className="flex flex-col gap-3">
-                    <button
-                        onClick={() => {
-                            setShowConflictModal(false);
-                            // Gọi reload lại URL với ID cũ để đi thẳng vào đơn cũ
-                            window.location.href = `/checkout?cruiseId=${searchParams.get('cruiseId')}&cabinId=${conflictData.old_cabin_id}&scheduleId=${conflictData.old_schedule_id}`;
-                        }}
-                        className="w-full py-4 bg-[#0A192F] text-amber-400 font-bold rounded-xl hover:bg-slate-800 transition shadow-md"
-                    >
-                        Tiếp tục thanh toán đơn cũ
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setShowConflictModal(false);
-                            handleHoldRoom(true); 
-                        }}
-                        className="w-full py-4 bg-[#F8F9FA] text-amber-400 font-bold rounded-xl hover:bg-[#741934] transition border border-[#8B1E3F]"
-                    >
-                        Hủy đơn cũ & Đặt phòng mới
-                    </button>
-                    </div>
-                </div>
-                </div>
-            )}
-
-            {/* THANH ĐẾM NGƯỢC */}
-            <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-0 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
-                <Clock className="w-5 h-5 animate-pulse" />
-                Phòng của bạn đang được giữ trong <span className="text-white font-bold text-lg w-16 text-center">{formatTime(timeLeft)}</span>
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
             </div>
+            <h3 className="text-2xl font-bold text-[#0A192F] mb-3 font-serif">
+              Phát hiện Đơn hàng chờ!
+            </h3>
+            <p className="text-slate-600 mb-8 leading-relaxed">
+              Hệ thống ghi nhận bạn đang có 1 đơn giữ phòng vào ngày{" "}
+              <strong className="text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                {conflictData.old_date
+                  ? new Date(conflictData.old_date).toLocaleDateString("vi-VN")
+                  : "khác"}
+              </strong>{" "}
+              chưa được hoàn tất. Bạn muốn xử lý thế nào?
+            </p>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
-                {/* CỘT TRÁI - FORM THANH TOÁN */}
-                <div className="lg:w-2/3 space-y-8">
-                    {/* NÂNG TẦM TRẢI NGHIỆM */}
-                    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-6 md:p-8 border-b border-slate-100">
-                            <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Nâng Tầm Trải Nghiệm</h2>
-                            <p className="text-slate-600">Chọn các dịch vụ cao cấp để chuyến đi của bạn thêm phần hoàn hảo.</p>
-                        </div>
-                        <div className="p-6 md:p-8 space-y-4">
-                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.beverage ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                <div className="flex items-start gap-4">
-                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.beverage} onChange={(e) => setAddons({...addons, beverage: e.target.checked})} /></div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-900">Gói Đồ Uống Thượng Hạng</h4>
-                                        <p className="text-sm text-slate-600">Thỏa thích thưởng thức rượu vang, cocktail và cà phê pha máy không giới hạn.</p>
-                                    </div>
-                                </div>
-                                <div className="text-right ml-4 shrink-0">
-                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</div>
-                                    <div className="text-xs text-slate-500">tổng cộng</div>
-                                </div>
-                            </label>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  // Gọi reload lại URL với ID cũ để đi thẳng vào đơn cũ
+                  window.location.href = `/checkout?cruiseId=${searchParams.get("cruiseId")}&cabinId=${conflictData.old_cabin_id}&scheduleId=${conflictData.old_schedule_id}`;
+                }}
+                className="w-full py-4 bg-[#0A192F] text-amber-400 font-bold rounded-xl hover:bg-slate-800 transition shadow-md"
+              >
+                Tiếp tục thanh toán đơn cũ
+              </button>
 
-                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.wifi ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                <div className="flex items-start gap-4">
-                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.wifi} onChange={(e) => setAddons({...addons, wifi: e.target.checked})} /></div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-900">Internet Vệ Tinh Starlink</h4>
-                                        <p className="text-sm text-slate-600">Kết nối mạng tốc độ cao ngay giữa đại dương. (1 thiết bị/khách).</p>
-                                    </div>
-                                </div>
-                                <div className="text-right ml-4 shrink-0">
-                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</div>
-                                    <div className="text-xs text-slate-500">tổng cộng</div>
-                                </div>
-                            </label>
-
-                            <label className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.insurance ? 'border-amber-500 bg-amber-50' : 'border-slate-100 hover:border-slate-300'}`}>
-                                <div className="flex items-start gap-4">
-                                    <div className="mt-1"><input type="checkbox" className="w-5 h-5 accent-amber-500" checked={addons.insurance} onChange={(e) => setAddons({...addons, insurance: e.target.checked})} /></div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-900">Bảo Hiểm Du Lịch OceanaLux</h4>
-                                        <p className="text-sm text-slate-600">Bảo vệ toàn diện cho hành lý, y tế và hủy chuyến không lường trước.</p>
-                                    </div>
-                                </div>
-                                <div className="text-right ml-4 shrink-0">
-                                    <div className="font-bold text-slate-900">+{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</div>
-                                    <div className="text-xs text-slate-500">tổng cộng</div>
-                                </div>
-                            </label>
-                        </div>
-                    </section>
-
-                    {/* PHƯƠNG THỨC THANH TOÁN */}
-                    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="p-6 md:p-8 border-b border-slate-100">
-                            <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">Phương Thức Thanh Toán</h2>
-                            <div className="flex items-center gap-2 text-sm text-green-600 font-medium bg-green-50 w-fit px-3 py-1 rounded-full">
-                                <ShieldCheck className="w-4 h-4" /> Thanh toán mã hóa bảo mật 256-bit
-                            </div>
-                        </div>
-                        <form onSubmit={handlePayment} className="p-6 md:p-8">
-                            <div className="space-y-4 mb-8">
-                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'vnpay' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <input type="radio" name="payment" value="vnpay" checked={paymentMethod === 'vnpay'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
-                                        <div className="flex items-center gap-3"><Wallet className="w-6 h-6 text-blue-600" /> <span className="font-bold text-slate-900">VNPAY (Quét mã QR / Thẻ nội địa)</span></div>
-                                    </div>
-                                </label>
-                                <label className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === 'credit_card' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <input type="radio" name="payment" value="credit_card" checked={paymentMethod === 'credit_card'} onChange={(e) => setPaymentMethod(e.target.value)} className="w-5 h-5 accent-amber-500" />
-                                        <div className="flex items-center gap-3"><CreditCard className="w-6 h-6 text-slate-600" /> <span className="font-bold text-slate-900">Thẻ Tín Dụng Quốc Tế</span></div>
-                                    </div>
-                                </label>
-                            </div>
-                            <button type="submit" disabled={isProcessing} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-all shadow-xl disabled:opacity-70 flex items-center justify-center gap-2">
-                                {isProcessing ? (
-                                    <><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Đang kết nối ngân hàng...</>
-                                ) : (
-                                    <>Xác Nhận Thanh Toán • {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</>
-                                )}
-                            </button>
-                        </form>
-                    </section>
-                </div>
-
-                {/* CỘT PHẢI - TÓM TẮT */}
-                <div className="lg:w-1/3">
-                    <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden sticky top-24 text-white">
-                        <div className="p-6 border-b border-slate-800">
-                            <h3 className="text-xl font-bold font-serif mb-1">Tóm Tắt Đơn Hàng</h3>
-                            <p className="text-slate-400 text-sm">Kiểm tra chi tiết chuyến hải trình</p>
-                        </div>
-                        <div className="p-6 space-y-6">
-                            <div className="flex gap-4 items-start">
-                                <img src={cruiseData.images && cruiseData.images[0] ? cruiseData.images[0].image_url : "/images/tau-1.jpg"} alt="Ảnh tàu" className="w-20 h-20 rounded-lg object-cover" />
-                                <div>
-                                    <h4 className="font-bold text-white leading-tight mb-1">{cruiseData.name}</h4>
-                                    <div className="text-xs text-amber-500 font-semibold uppercase">{cabinData.name}</div>
-                                    <div className="text-xs text-slate-400 mt-1">{cruiseData.duration_days || 3} Ngày {cruiseData.duration_nights || 2} Đêm • {guests} Khách</div>
-                                </div>
-                            </div>
-                            <div className="space-y-3 pt-6 border-t border-slate-800">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-400">Giá phòng ({guests} Khách)</span>
-                                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(basePrice)}</span>
-                                </div>
-                                {/* MỚI THÊM: HIỆN THÔNG BÁO PHỤ THU NẾU CÓ */}
-                                {isSurcharged && (
-                                    <div className="text-[11px] text-amber-500 italic text-right mt-1">
-                                        *Đã bao gồm 15% phụ thu ở ghép
-                                    </div>
-                                )}
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-400 flex items-center gap-1">Thuế & Phí Cảng</span>
-                                    <span className="font-medium text-white">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(taxes)}</span>
-                                </div>
-                                {totalAddons > 0 && (
-                                    <div className="pt-3 mt-3 border-t border-slate-800 border-dashed space-y-3">
-                                        <div className="text-xs font-bold text-amber-500 uppercase tracking-wider">Dịch Vụ Bổ Sung</div>
-                                        {addons.beverage && (
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-400 text-xs">Gói đồ uống</span>
-                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.beverage)}đ</span>
-                                            </div>
-                                        )}
-                                        {addons.wifi && (
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-400 text-xs">Wifi Starlink</span>
-                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.wifi)}đ</span>
-                                            </div>
-                                        )}
-                                        {addons.insurance && (
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-slate-400 text-xs">Bảo hiểm du lịch</span>
-                                                <span className="font-medium text-white text-xs">{new Intl.NumberFormat('vi-VN').format(addonPrices.insurance)}đ</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="pt-6 border-t border-slate-800 flex justify-between items-end">
-                                <div>
-                                    <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">Tổng Tiền</div>
-                                    <div className="text-xs text-slate-500">Đã bao gồm VAT</div>
-                                </div>
-                                <div className="text-2xl font-bold text-amber-500">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(totalAmount)}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+              <button
+                onClick={() => {
+                  setShowConflictModal(false);
+                  handleHoldRoom(true);
+                }}
+                className="w-full py-4 bg-[#F8F9FA] text-amber-400 font-bold rounded-xl hover:bg-[#741934] transition border border-[#8B1E3F]"
+              >
+                Hủy đơn cũ & Đặt phòng mới
+              </button>
             </div>
+          </div>
         </div>
-    );
+      )}
+
+      {/* THANH ĐẾM NGƯỢC */}
+      <div className="bg-[#0A192F] text-amber-400 py-3 px-4 sticky top-0 z-40 shadow-md flex justify-center items-center gap-2 font-medium">
+        <Clock className="w-5 h-5 animate-pulse" />
+        Phòng của bạn đang được giữ trong{" "}
+        <span className="text-white font-bold text-lg w-16 text-center">
+          {formatTime(timeLeft)}
+        </span>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
+        {/* CỘT TRÁI - FORM THANH TOÁN */}
+        <div className="lg:w-2/3 space-y-8">
+          {/* NÂNG TẦM TRẢI NGHIỆM */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-slate-100">
+              <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">
+                Nâng Tầm Trải Nghiệm
+              </h2>
+              <p className="text-slate-600">
+                Chọn các dịch vụ cao cấp để chuyến đi của bạn thêm phần hoàn
+                hảo.
+              </p>
+            </div>
+            <div className="p-6 md:p-8 space-y-4">
+              <label
+                className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.beverage ? "border-amber-500 bg-amber-50" : "border-slate-100 hover:border-slate-300"}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="mt-1">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 accent-amber-500"
+                      checked={addons.beverage}
+                      onChange={(e) =>
+                        setAddons({ ...addons, beverage: e.target.checked })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">
+                      Gói Đồ Uống Thượng Hạng
+                    </h4>
+                    <p className="text-sm text-slate-600">
+                      Thỏa thích thưởng thức rượu vang, cocktail và cà phê pha
+                      máy không giới hạn.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right ml-4 shrink-0">
+                  <div className="font-bold text-slate-900">
+                    +
+                    {new Intl.NumberFormat("vi-VN").format(
+                      addonPrices.beverage,
+                    )}
+                    đ
+                  </div>
+                  <div className="text-xs text-slate-500">tổng cộng</div>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.wifi ? "border-amber-500 bg-amber-50" : "border-slate-100 hover:border-slate-300"}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="mt-1">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 accent-amber-500"
+                      checked={addons.wifi}
+                      onChange={(e) =>
+                        setAddons({ ...addons, wifi: e.target.checked })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">
+                      Internet Vệ Tinh Starlink
+                    </h4>
+                    <p className="text-sm text-slate-600">
+                      Kết nối mạng tốc độ cao ngay giữa đại dương. (1 thiết
+                      bị/khách).
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right ml-4 shrink-0">
+                  <div className="font-bold text-slate-900">
+                    +{new Intl.NumberFormat("vi-VN").format(addonPrices.wifi)}đ
+                  </div>
+                  <div className="text-xs text-slate-500">tổng cộng</div>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start md:items-center justify-between p-4 rounded-xl border-2 transition-colors cursor-pointer ${addons.insurance ? "border-amber-500 bg-amber-50" : "border-slate-100 hover:border-slate-300"}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="mt-1">
+                    <input
+                      type="checkbox"
+                      className="w-5 h-5 accent-amber-500"
+                      checked={addons.insurance}
+                      onChange={(e) =>
+                        setAddons({ ...addons, insurance: e.target.checked })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">
+                      Bảo Hiểm Du Lịch OceanaLux
+                    </h4>
+                    <p className="text-sm text-slate-600">
+                      Bảo vệ toàn diện cho hành lý, y tế và hủy chuyến không
+                      lường trước.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right ml-4 shrink-0">
+                  <div className="font-bold text-slate-900">
+                    +
+                    {new Intl.NumberFormat("vi-VN").format(
+                      addonPrices.insurance,
+                    )}
+                    đ
+                  </div>
+                  <div className="text-xs text-slate-500">tổng cộng</div>
+                </div>
+              </label>
+            </div>
+          </section>
+
+          {/* PHƯƠNG THỨC THANH TOÁN */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-slate-100">
+              <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">
+                Phương Thức Thanh Toán
+              </h2>
+              <div className="flex items-center gap-2 text-sm text-green-600 font-medium bg-green-50 w-fit px-3 py-1 rounded-full">
+                <ShieldCheck className="w-4 h-4" /> Thanh toán mã hóa bảo mật
+                256-bit
+              </div>
+            </div>
+            <form onSubmit={handlePayment} className="p-6 md:p-8">
+              <div className="space-y-4 mb-8">
+                <label
+                  className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === "vnpay" ? "border-amber-500 bg-amber-50" : "border-slate-200 hover:border-slate-300"}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="vnpay"
+                      checked={paymentMethod === "vnpay"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-5 h-5 accent-amber-500"
+                    />
+                    <div className="flex items-center gap-3">
+                      <Wallet className="w-6 h-6 text-blue-600" />{" "}
+                      <span className="font-bold text-slate-900">
+                        VNPAY (Quét mã QR / Thẻ nội địa)
+                      </span>
+                    </div>
+                  </div>
+                </label>
+                <label
+                  className={`block border-2 rounded-xl p-4 cursor-pointer transition-all ${paymentMethod === "credit_card" ? "border-amber-500 bg-amber-50" : "border-slate-200 hover:border-slate-300"}`}
+                >
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="credit_card"
+                      checked={paymentMethod === "credit_card"}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-5 h-5 accent-amber-500"
+                    />
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="w-6 h-6 text-slate-600" />{" "}
+                      <span className="font-bold text-slate-900">
+                        Thẻ Tín Dụng Quốc Tế
+                      </span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={isProcessing}
+                className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-amber-500 hover:text-slate-900 transition-all shadow-xl disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>{" "}
+                    Đang kết nối ngân hàng...
+                  </>
+                ) : (
+                  <>
+                    Xác Nhận Thanh Toán •{" "}
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(totalAmount)}
+                  </>
+                )}
+              </button>
+            </form>
+          </section>
+        </div>
+
+        {/* CỘT PHẢI - TÓM TẮT */}
+        <div className="lg:w-1/3">
+          <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden sticky top-24 text-white">
+            <div className="p-6 border-b border-slate-800">
+              <h3 className="text-xl font-bold font-serif mb-1">
+                Tóm Tắt Đơn Hàng
+              </h3>
+              <p className="text-slate-400 text-sm">
+                Kiểm tra chi tiết chuyến hải trình
+              </p>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="flex gap-4 items-start">
+                <img
+                  src={
+                    cruiseData.images && cruiseData.images[0]
+                      ? cruiseData.images[0].image_url
+                      : "/images/tau-1.jpg"
+                  }
+                  alt="Ảnh tàu"
+                  className="w-20 h-20 rounded-lg object-cover"
+                />
+                <div>
+                  <h4 className="font-bold text-white leading-tight mb-1">
+                    {cruiseData.name}
+                  </h4>
+                  <div className="text-xs text-amber-500 font-semibold uppercase">
+                    {cabinData.name}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">
+                    {cruiseData.duration_days || 3} Ngày{" "}
+                    {cruiseData.duration_nights || 2} Đêm • {guests} Khách
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3 pt-6 border-t border-slate-800">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">
+                    Giá phòng ({guests} Khách)
+                  </span>
+                  <span className="font-medium text-white">
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(basePrice)}
+                  </span>
+                </div>
+                {/* MỚI THÊM: HIỆN THÔNG BÁO PHỤ THU NẾU CÓ */}
+                {isSurcharged && (
+                  <div className="text-[11px] text-amber-500 italic text-right mt-1">
+                    *Đã bao gồm 15% phụ thu ở ghép
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400 flex items-center gap-1">
+                    Thuế & Phí Cảng
+                  </span>
+                  <span className="font-medium text-white">
+                    {new Intl.NumberFormat("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    }).format(taxes)}
+                  </span>
+                </div>
+                {totalAddons > 0 && (
+                  <div className="pt-3 mt-3 border-t border-slate-800 border-dashed space-y-3">
+                    <div className="text-xs font-bold text-amber-500 uppercase tracking-wider">
+                      Dịch Vụ Bổ Sung
+                    </div>
+                    {addons.beverage && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400 text-xs">
+                          Gói đồ uống
+                        </span>
+                        <span className="font-medium text-white text-xs">
+                          {new Intl.NumberFormat("vi-VN").format(
+                            addonPrices.beverage,
+                          )}
+                          đ
+                        </span>
+                      </div>
+                    )}
+                    {addons.wifi && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400 text-xs">
+                          Wifi Starlink
+                        </span>
+                        <span className="font-medium text-white text-xs">
+                          {new Intl.NumberFormat("vi-VN").format(
+                            addonPrices.wifi,
+                          )}
+                          đ
+                        </span>
+                      </div>
+                    )}
+                    {addons.insurance && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400 text-xs">
+                          Bảo hiểm du lịch
+                        </span>
+                        <span className="font-medium text-white text-xs">
+                          {new Intl.NumberFormat("vi-VN").format(
+                            addonPrices.insurance,
+                          )}
+                          đ
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="pt-6 border-t border-slate-800 flex justify-between items-end">
+                <div>
+                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">
+                    Tổng Tiền
+                  </div>
+                  <div className="text-xs text-slate-500">Đã bao gồm VAT</div>
+                </div>
+                <div className="text-2xl font-bold text-amber-500">
+                  {new Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(totalAmount)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
