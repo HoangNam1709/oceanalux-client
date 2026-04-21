@@ -8,12 +8,12 @@ import { Dashboard } from "./pages/Dashboard";
 import { LoginPage } from "./pages/LoginPage";
 import { SignUpPage } from "./pages/SignUpPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
-import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { AdminDashboardPage } from "./pages/AdminPages/AdminDashboardPage";
 import { Layout } from "./components/Layout";
 import { PaymentResultPage } from "./pages/PaymentResultPage";
-import { BookingDetailPage } from './pages/BookingDetailPage'; 
-import { AboutPage } from './pages/AboutPage';
-import { OffersPage } from './pages/OffersPage';
+import { BookingDetailPage } from "./pages/BookingDetailPage";
+import { AboutPage } from "./pages/AboutPage";
+import { OffersPage } from "./pages/OffersPage";
 function App() {
   return (
     <BrowserRouter>
@@ -29,12 +29,15 @@ function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/payment-result" element={<PaymentResultPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          // ... trong phần khai báo 
+          // ... trong phần khai báo
           <Route path="/booking/:id" element={<BookingDetailPage />} />
           // Thêm :bookingId vào cuối path để React Router hiểu đây là một biến
-          <Route path="/checkout/payment/:bookingId?" element={<CheckoutPage />} />
+          <Route
+            path="/checkout/payment/:bookingId?"
+            element={<CheckoutPage />}
+          />
         </Route>
-        
+
         {/* Các trang không dùng chung Layout (như Login, Admin) */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
@@ -44,7 +47,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
-
 
 export default App;

@@ -212,7 +212,7 @@ export function CruiseDetailPage() {
   }, [cruise?.images, activeImageIndex]);
   useEffect(() => {
     axios
-      .get(`http://localhost/api/cruises/${id}`)
+      .get(`http://localhost:8081/api/cruises/${id}`)
       .then((response) => {
         setCruise(response.data.data);
       })
@@ -259,7 +259,7 @@ export function CruiseDetailPage() {
     // Gọi API để lấy số lượng phòng chuẩn xác cho ngày vừa chọn
     axios
       .get(
-        `http://localhost/api/schedules/${selectedScheduleId}/available-cabins`,
+        `http://localhost:8081/api/schedules/${selectedScheduleId}/available-cabins`,
       )
       .then((response) => {
         // Cập nhật lại mảng cabin_classes trong state cruise
@@ -517,12 +517,14 @@ export function CruiseDetailPage() {
                   <h3 className="text-2xl font-serif font-bold text-slate-900">
                     Chọn không gian nghỉ dưỡng
                   </h3>
-                  
+
                   {/* Lời nhắc nhẹ nhàng (Tuỳ chọn) */}
                   {!selectedScheduleId && (
                     <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-200 flex items-center gap-3">
                       <Info className="w-4 h-4" />
-                      <span>Chọn ngày khởi hành để xem phòng trống chính xác</span>
+                      <span>
+                        Chọn ngày khởi hành để xem phòng trống chính xác
+                      </span>
                     </div>
                   )}
                 </div>
@@ -533,9 +535,9 @@ export function CruiseDetailPage() {
                     // TRICK: Nếu chưa chọn ngày, lấy total_rooms làm số lượng hiển thị
                     const displayCabin = {
                       ...cabin,
-                      available_rooms: selectedScheduleId 
-                        ? cabin.available_rooms 
-                        : (cabin.total_rooms || 0) // Tránh undefined nếu API chưa có total_rooms
+                      available_rooms: selectedScheduleId
+                        ? cabin.available_rooms
+                        : cabin.total_rooms || 0, // Tránh undefined nếu API chưa có total_rooms
                     };
 
                     return (
