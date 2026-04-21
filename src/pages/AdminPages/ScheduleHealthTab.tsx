@@ -310,7 +310,6 @@ export function ScheduleHealthTab({ schedules }: Props) {
                                 <span className="text-sm font-bold text-[#0A192F]">
                                   {item.metrics.occupancy_rate}%
                                 </span>
-            
                               </div>
                               <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/50">
                                 <div

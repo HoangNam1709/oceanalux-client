@@ -44,6 +44,7 @@ export interface Cruise {
   facilities: string[];
   cabins: Cabin[];
   featured: boolean;
+  schedules?: any[];
 }
 
 export interface Booking {

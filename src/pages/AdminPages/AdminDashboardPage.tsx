@@ -213,6 +213,7 @@ export function AdminDashboardPage() {
 
   const handleDeleteCruise = async () => {
     if (!deleteCruise) return;
+
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/cruises/${deleteCruise.id}`,
@@ -221,13 +222,30 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-      if ((await res.json()).status === "success") {
+
+      // Lấy dữ liệu từ Backend
+      const data = await res.json();
+
+      // BẮT LỖI 400 (RÀNG BUỘC DỮ LIỆU)
+      if (res.status === 400) {
+        // Dùng cú pháp cơ bản nhất để đảm bảo thư viện Toast nào cũng chạy được
+        toast.error(data.message);
+        setDeleteCruise(null); // Đóng modal
+        return; // Dừng hàm tại đây
+      }
+
+      // XÓA THÀNH CÔNG
+      if (res.ok && data.status === "success") {
         setCruises((prev) => prev.filter((c) => c.id !== deleteCruise.id));
         setDeleteCruise(null);
         toast.success("Xóa Du thuyền thành công!");
+      } else {
+        // Lỗi logic khác từ Server
+        toast.error(data.message || "Lỗi khi xóa du thuyền!");
       }
     } catch (error) {
-      toast.error("Lỗi Server!");
+      console.error("Lỗi catch:", error);
+      toast.error("Không thể kết nối đến Server!");
     }
   };
 
@@ -278,6 +296,7 @@ export function AdminDashboardPage() {
 
   const handleDeleteCabin = async () => {
     if (!deleteCabin) return;
+
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/cabins/${deleteCabin.id}`,
@@ -286,13 +305,29 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-      if ((await res.json()).status === "success") {
+
+      // 1. Gỡ dữ liệu từ Backend ra trước
+      const data = await res.json();
+
+      //  2. BẮT KHIÊN BẢO VỆ (Lỗi 400 - Ràng buộc lịch trình/đơn hàng)
+      if (res.status === 400) {
+        toast.error(data.message); // Hiển thị nguyên văn lời từ chối của Backend
+        setDeleteCabin(null); // Tắt modal xác nhận
+        return; // Dừng hàm lại
+      }
+
+      //  3. XÓA THÀNH CÔNG
+      if (res.ok && data.status === "success") {
         setCruises((prev) =>
           prev.map((cruise) => {
             if (cruise.id !== selectedCruiseId) return cruise;
+
+            // Cập nhật lại danh sách phòng
             const updatedCabins = cruise.cabins.filter(
               (c) => c.id !== deleteCabin.id,
             );
+
+            // Cập nhật lại giá Min của tàu
             return {
               ...cruise,
               cabins: updatedCabins,
@@ -303,11 +338,19 @@ export function AdminDashboardPage() {
             };
           }),
         );
+
         setDeleteCabin(null);
-        toast.success("Đã xóa phòng!");
+        toast.success("Đã xóa hạng phòng thành công!");
+      } else {
+        // Lỗi logic khác từ Server
+        toast.error(data.message || "Lỗi khi xóa hạng phòng!");
       }
     } catch (error) {
-      toast.error("Lỗi Server!");
+      console.error(error);
+      // Xử lý chuẩn TypeScript/ES6 để không bị lỗi error.message
+      const errorMessage =
+        error instanceof Error ? error.message : "Lỗi Server!";
+      toast.error(errorMessage);
     }
   };
 
@@ -345,6 +388,7 @@ export function AdminDashboardPage() {
 
   const handleDeleteAccount = async () => {
     if (!deleteAccount) return;
+
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/accounts/${deleteAccount.id}`,
@@ -353,13 +397,32 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-      if ((await res.json()).status === "success") {
+
+      // 1. Gỡ dữ liệu JSON từ Backend
+      const data = await res.json();
+
+      // 2. BẮT KHIÊN BẢO VỆ (Lỗi 400 - Tài khoản đã có lịch sử đặt phòng)
+      if (res.status === 400) {
+        toast.error(data.message);
+        setDeleteAccount(null); // Đóng modal xác nhận để Admin đỡ phải tự bấm tắt
+        return; // Dừng hàm, không chạy lệnh xóa State bên dưới
+      }
+
+      //  3. XÓA THÀNH CÔNG
+      if (res.ok && data.status === "success") {
         setAccounts((prev) => prev.filter((a) => a.id !== deleteAccount.id));
         setDeleteAccount(null);
-        toast.success("Đã xóa tài khoản!");
+        toast.success("Đã xóa tài khoản thành công!");
+      } else {
+        // Xử lý nếu Server trả về lỗi khác (VD: 500, 404)
+        toast.error(data.message || "Lỗi khi xóa tài khoản!");
       }
     } catch (error) {
-      toast.error("Lỗi Server!");
+      console.error(error);
+      // Xử lý an toàn cho TypeScript
+      const errorMessage =
+        error instanceof Error ? error.message : "Lỗi Server!";
+      toast.error(errorMessage);
     }
   };
 

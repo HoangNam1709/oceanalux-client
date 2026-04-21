@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { Ship, User, Menu, Bell, Shield, LogOut, X } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+
 export function Layout() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -37,7 +37,6 @@ export function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] font-sans text-slate-800">
-      <Toaster position="top-right" reverseOrder={false} />
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
