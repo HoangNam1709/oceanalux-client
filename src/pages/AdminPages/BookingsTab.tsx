@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { Search, Download, ChevronDown, Eye } from "lucide-react";
+import { toast } from "react-hot-toast";
+import {
+  Search,
+  Download,
+  ChevronDown,
+  Eye,
+  RotateCcw,
+  AlertCircle,
+  X,
+} from "lucide-react";
 import {
   Booking,
   BookingStatus,
@@ -8,11 +17,152 @@ import {
   Pagination,
 } from "./adminShared";
 
+// ==========================================
+// COMPONENT: MODAL HỦY & HOÀN TIỀN CHO ADMIN
+// ==========================================
+const AdminCancelRefundModal = ({
+  booking,
+  onClose,
+  onSuccess,
+}: {
+  booking: Booking;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [reason, setReason] = useState("");
+  const [agreed, setAgreed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAdminRefund = async () => {
+    if (!agreed) {
+      toast.error("Vui lòng xác nhận đồng ý với chính sách hoàn hủy!");
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error("Vui lòng nhập nội dung/lý do hoàn tiền!");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = localStorage.getItem("token");
+      // GỌI API ADMIN HỦY & HOÀN TIỀN
+      const res = await fetch(
+        `http://localhost:8081/api/admin/bookings/${booking.id}/cancel-refund`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ reason }),
+        },
+      );
+
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        toast.success("Đã chuyển đơn sang trạng thái Chờ Hoàn Tiền!");
+        onSuccess();
+        onClose();
+      } else {
+        toast.error(data.message || "Lỗi khi xử lý hoàn tiền");
+      }
+    } catch (error) {
+      toast.error("Lỗi kết nối máy chủ");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden animate-in zoom-in-95">
+        <div className="bg-red-50 p-5 border-b border-red-100 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-red-700 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" /> Admin: Xử lý Hủy & Hoàn tiền
+          </h3>
+          <button onClick={onClose} className="text-red-400 hover:text-red-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700">
+            <p className="mb-2">
+              Bạn đang thực hiện thao tác Hủy đơn và tính toán Hoàn tiền cho mã
+              vé:{" "}
+              <strong className="text-[#0A192F]">{booking.bookingRef}</strong>.
+            </p>
+            <p>
+              Hệ thống sẽ tự động tính toán số tiền được hoàn dựa trên ngày khởi
+              hành (
+              <strong className="text-amber-600">
+                {booking.departureDate}
+              </strong>
+              ) và chuyển đơn này sang danh sách{" "}
+              <strong>Chờ Kế Toán Hoàn Tiền</strong>.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">
+              Nội dung / Lý do hoàn tiền (Bắt buộc){" "}
+              <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full border-slate-200 rounded-xl p-3 text-sm focus:ring-red-500 focus:border-red-500 min-h-[80px]"
+              placeholder="Ghi chú nội bộ cho kế toán..."
+            ></textarea>
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 rounded text-red-500 focus:ring-red-500 w-4 h-4 cursor-pointer"
+            />
+            <span className="text-sm text-slate-600 font-medium">
+              Tôi xác nhận Hủy đơn hàng này và giải phóng kho phòng. Thao tác
+              này không thể hoàn tác.
+            </span>
+          </label>
+        </div>
+
+        <div className="p-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors text-sm"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            disabled={isSubmitting}
+            onClick={handleAdminRefund}
+            className="px-5 py-2.5 bg-red-600 text-white font-bold hover:bg-red-700 rounded-xl transition-colors text-sm disabled:opacity-50 flex items-center gap-2"
+          >
+            {isSubmitting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            Xác nhận Hủy & Hoàn tiền
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// COMPONENT CHÍNH: BOOKINGS TAB
+// ==========================================
 interface Props {
   bookings: Booking[];
   updatingId: string | number | null;
   handleUpdateStatus: (id: string, status: BookingStatus) => void;
   setSelectedBooking: (b: Booking) => void;
+  refreshData?: () => void; // Thêm prop này để load lại data sau khi admin hủy
 }
 
 export function BookingsTab({
@@ -20,18 +170,18 @@ export function BookingsTab({
   updatingId,
   handleUpdateStatus,
   setSelectedBooking,
+  refreshData,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<BookingStatus | "all">(
     "all",
   );
-
-  // ─── THÊM STATE PHÂN TRANG ───
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  // ─── THÊM STATE LOADING CHO NÚT EXCEL ───
   const [isExporting, setIsExporting] = useState(false);
+
+  // 🚀 STATE QUẢN LÝ MODAL HOÀN TIỀN
+  const [bookingToRefund, setBookingToRefund] = useState<Booking | null>(null);
 
   const filteredBookings = bookings.filter((b) => {
     const q = searchQuery.toLowerCase();
@@ -43,7 +193,6 @@ export function BookingsTab({
     );
   });
 
-  // ─── LOGIC CẮT MẢNG DỮ LIỆU ───
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
   const currentItems = filteredBookings.slice(
     (currentPage - 1) * itemsPerPage,
@@ -60,39 +209,26 @@ export function BookingsTab({
     setCurrentPage(1);
   };
 
-  // ─── LOGIC TẢI FILE BẢO MẬT BẰNG BLOB ───
   const handleExportExcel = async () => {
     try {
       setIsExporting(true);
       const token = localStorage.getItem("token");
-
-      // Gọi API xuất file của Laravel
       const response = await fetch(
         "http://localhost:8081/api/admin/revenue/export",
         {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`, // Đính kèm token
-          },
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
 
       if (!response.ok) throw new Error("Không thể xuất file");
-
-      // Biến đổi dữ liệu trả về thành dạng File nhị phân (Blob)
       const blob = await response.blob();
-
-      // Tạo một đường dẫn ảo (URL) cho file này trên trình duyệt
       const url = window.URL.createObjectURL(blob);
-
-      // Tạo một thẻ <a> ảo, gắn link và tự động click để tải về
       const a = document.createElement("a");
       a.href = url;
       a.download = `OceanaLux_BaoCaoDoanhThu_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
-
-      // Dọn dẹp rác bộ nhớ sau khi tải xong
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -104,7 +240,7 @@ export function BookingsTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 relative">
@@ -132,7 +268,6 @@ export function BookingsTab({
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
 
-          {/* NÚT XUẤT EXCEL ĐÃ ĐƯỢC KÍCH HOẠT */}
           <button
             onClick={handleExportExcel}
             disabled={isExporting}
@@ -237,9 +372,22 @@ export function BookingsTab({
                         <button
                           onClick={() => setSelectedBooking(b)}
                           className="p-2 rounded-md bg-[#0A192F]/5 text-[#0A192F] hover:bg-[#0A192F]/10 transition-colors"
+                          title="Xem chi tiết"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+
+                        {/* 🚀 NÚT HỦY & HOÀN TIỀN (CHỈ HIỆN KHI ĐÃ THANH TOÁN) */}
+                        {b.status === "paid" && (
+                          <button
+                            onClick={() => setBookingToRefund(b)}
+                            className="p-2 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"
+                            title="Hủy đơn & Yêu cầu hoàn tiền"
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                          </button>
+                        )}
+
                         <div className="relative">
                           <select
                             value={b.status}
@@ -278,6 +426,17 @@ export function BookingsTab({
           itemsPerPage={itemsPerPage}
         />
       </div>
+
+      {/* 🚀 GỌI MODAL TẠI ĐÂY */}
+      {bookingToRefund && (
+        <AdminCancelRefundModal
+          booking={bookingToRefund}
+          onClose={() => setBookingToRefund(null)}
+          onSuccess={() => {
+            if (refreshData) refreshData();
+          }}
+        />
+      )}
     </div>
   );
 }

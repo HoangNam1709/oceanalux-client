@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import {
   CreditCard,
@@ -11,6 +11,9 @@ import { motion } from "framer-motion";
 import axios from "axios";
 import { echo } from "../echo";
 import { toast } from "react-hot-toast";
+
+const syncChannel = new BroadcastChannel("booking_sync_channel");
+
 export function CheckoutPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -75,21 +78,50 @@ export function CheckoutPage() {
       (addons.beverage ? prices.beverage : 0);
 
     return {
-      basePrice: finalBasePrice, // Sử dụng giá đã cộng phụ thu
+      basePrice: finalBasePrice,
       taxes: taxAmount,
       addonPrices: prices,
       totalAddons: totalAddon,
       totalAmount: finalBasePrice + taxAmount + totalAddon,
-      isSurcharged: surcharged, // Gửi cờ này ra ngoài để hiện thông báo
+      isSurcharged: surcharged,
     };
   }, [cabinData, addons, guests]);
+
+  // 🚀 LẮNG NGHE TÍN HIỆU XUYÊN TAB (Tab bị "đuổi")
+  useEffect(() => {
+    const handleSyncMessage = (event: MessageEvent) => {
+      // Nhận được lệnh hủy từ Tab khác, và Tab hiện tại đang mở 1 Booking
+      if (event.data.type === "OLD_BOOKING_CANCELLED" && bookingId) {
+        // Chặn không cho thanh toán nữa
+        setIsProcessing(true);
+        toast.error(
+          "Đơn giữ phòng này đã bị hủy do bạn tạo một giao dịch mới!",
+          {
+            duration: 5000,
+          },
+        );
+
+        // Đuổi về trang chủ hoặc dashboard
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 2000);
+      }
+    };
+
+    syncChannel.addEventListener("message", handleSyncMessage);
+
+    return () => {
+      syncChannel.removeEventListener("message", handleSyncMessage);
+    };
+  }, [bookingId, navigate]);
 
   // 3. useEffect 1: GỌI API GIỮ PHÒNG HOẶC PHỤC HỒI ĐƠN CŨ
   useEffect(() => {
     const token = localStorage.getItem("token");
+    const paymentStatus = searchParams.get("status"); // Lấy trạng thái từ URL
 
     // ==========================================
-    // NGÃ RẼ 1: KHÁCH CŨ QUAY LẠI THANH TOÁN
+    // NGÃ RẼ 1: KHÁCH CŨ QUAY LẠI THANH TOÁN (Hoặc VNPAY trả về)
     // ==========================================
     if (paramBookingId) {
       axios
@@ -108,33 +140,49 @@ export function CheckoutPage() {
             setCabinData(cabin);
             setBookingId(oldBooking.id);
 
-            if (oldBooking.hold_expires_at) {
-              const expireTimeStr = oldBooking.hold_expires_at.replace(
-                " ",
-                "T",
-              );
-              const expiresAt = new Date(expireTimeStr).getTime();
-              const now = new Date().getTime();
-              const remaining = Math.floor((expiresAt - now) / 1000);
+            // 🚀 FIX BUG: NẾU ĐÃ THANH TOÁN HOẶC VNPAY TRẢ VỀ SUCCESS -> DỪNG ĐẾM NGƯỢC
+            if (oldBooking.status === "paid" || paymentStatus === "success") {
+              setIsSuccess(true);
+              return; // Dừng hàm tại đây, không chạy bộ đếm giờ nữa
+            }
 
-              if (remaining > 0) {
-                setTimeLeft(remaining);
-              } else {
-                toast.error(
-                  "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
-                );
-                navigate("/dashboard");
-              }
-            } else {
-              const backupRemaining = Math.floor(
-                Number(oldBooking.remaining_seconds),
+            // Nếu VNPAY trả về thất bại
+            if (paymentStatus === "failed") {
+              toast.error(
+                "Thanh toán thất bại hoặc đã bị hủy. Vui lòng thử lại!",
               );
-              if (backupRemaining > 0) setTimeLeft(backupRemaining);
-              else {
-                toast.error(
-                  "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
+            }
+
+            // CHỈ ĐẾM NGƯỢC NẾU ĐƠN VẪN ĐANG HOLDING
+            if (oldBooking.status === "holding") {
+              if (oldBooking.hold_expires_at) {
+                const expireTimeStr = oldBooking.hold_expires_at.replace(
+                  " ",
+                  "T",
                 );
-                navigate("/dashboard");
+                const expiresAt = new Date(expireTimeStr).getTime();
+                const now = new Date().getTime();
+                const remaining = Math.floor((expiresAt - now) / 1000);
+
+                if (remaining > 0) {
+                  setTimeLeft(remaining);
+                } else {
+                  toast.error(
+                    "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
+                  );
+                  navigate("/dashboard");
+                }
+              } else {
+                const backupRemaining = Math.floor(
+                  Number(oldBooking.remaining_seconds),
+                );
+                if (backupRemaining > 0) setTimeLeft(backupRemaining);
+                else {
+                  toast.error(
+                    "Đơn hàng này đã hết hạn giữ chỗ! Vui lòng đặt đơn mới.",
+                  );
+                  navigate("/dashboard");
+                }
               }
             }
           } else {
@@ -181,20 +229,16 @@ export function CheckoutPage() {
         );
       })
       .then((holdRes) => {
-        // Kiểm tra nếu Backend báo có đơn cũ thì bật Popup
         if (holdRes.data.status === "require_confirmation") {
           setConflictData(holdRes.data.data);
           setShowConflictModal(true);
-        }
-        // Nếu thành công thì mới thiết lập đồng hồ
-        else if (holdRes.data.status === "success") {
+        } else if (holdRes.data.status === "success") {
           setBookingId(holdRes.data.data.booking_id);
           setTimeLeft(Math.floor(Number(holdRes.data.data.remaining_seconds)));
         }
       })
       .catch((err) => {
         console.error("Lỗi giữ phòng:", err);
-        // Nếu lỗi do hết phòng, backend sẽ trả về status 400
         if (err.response?.data?.message) {
           toast.error(err.response.data.message);
         }
@@ -202,7 +246,7 @@ export function CheckoutPage() {
       });
   }, [cruiseId, cabinId, guests, scheduleId, paramBookingId, navigate]);
 
-  // 4. HÀM XỬ LÝ LỰA CHỌN TRONG POPUP XUNG ĐỘT
+  // 4. HÀM XỬ LÝ LỰA CHỌN TRONG POPUP XUNG ĐỘT (Nơi phát tín hiệu giết Tab cũ)
   const handleHoldRoom = (forceCancel = false) => {
     axios
       .post(
@@ -220,7 +264,15 @@ export function CheckoutPage() {
       )
       .then((res) => {
         if (res.data.status === "success") {
-          // Kích hoạt đồng hồ và mã booking mới
+          // 🚀 PHÁT TÍN HIỆU CHO CÁC TAB KHÁC RẰNG ĐƠN CŨ ĐÃ BỊ HỦY
+          if (forceCancel) {
+            syncChannel.postMessage({
+              type: "OLD_BOOKING_CANCELLED",
+              newBookingId: res.data.data.booking_id,
+            });
+          }
+
+          // Kích hoạt đồng hồ và mã booking mới cho Tab này
           setBookingId(res.data.data.booking_id);
           setTimeLeft(Math.floor(Number(res.data.data.remaining_seconds)));
           console.log("Đã hủy đơn cũ và giữ chỗ mới thành công!");
@@ -423,7 +475,6 @@ export function CheckoutPage() {
               <button
                 onClick={() => {
                   setShowConflictModal(false);
-                  // Gọi reload lại URL với ID cũ để đi thẳng vào đơn cũ
                   window.location.href = `/checkout?cruiseId=${searchParams.get("cruiseId")}&cabinId=${conflictData.old_cabin_id}&scheduleId=${conflictData.old_schedule_id}`;
                 }}
                 className="w-full py-4 bg-[#0A192F] text-amber-400 font-bold rounded-xl hover:bg-slate-800 transition shadow-md"
@@ -457,7 +508,6 @@ export function CheckoutPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col lg:flex-row gap-8 py-8">
         {/* CỘT TRÁI - FORM THANH TOÁN */}
         <div className="lg:w-2/3 space-y-8">
-          {/* NÂNG TẦM TRẢI NGHIỆM */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100">
               <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">
@@ -575,7 +625,6 @@ export function CheckoutPage() {
             </div>
           </section>
 
-          {/* PHƯƠNG THỨC THANH TOÁN */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100">
               <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">
@@ -700,7 +749,6 @@ export function CheckoutPage() {
                     }).format(basePrice)}
                   </span>
                 </div>
-                {/* MỚI THÊM: HIỆN THÔNG BÁO PHỤ THU NẾU CÓ */}
                 {isSurcharged && (
                   <div className="text-[11px] text-amber-500 italic text-right mt-1">
                     *Đã bao gồm 15% phụ thu ở ghép

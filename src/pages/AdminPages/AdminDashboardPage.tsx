@@ -29,6 +29,7 @@ import {
   BookingStatus,
   Cabin,
   formatCurrency,
+  formatCompactCurrency,
   getStatusBadge,
 } from "./adminShared";
 
@@ -509,8 +510,23 @@ export function AdminDashboardPage() {
           />
         )}
 
+        {/* NỘI DUNG TABS */}
         {activeTab === "schedules-health" && (
-          <ScheduleHealthTab schedules={schedulesHealth} />
+          <ScheduleHealthTab
+            schedules={schedulesHealth}
+            bookings={bookings}
+            refreshData={() => {
+              // Hàm gọi lại API nếu Admin bấm nút thao tác
+              const token = localStorage.getItem("token");
+              fetch("http://localhost:8081/api/admin/bookings", {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (data.status === "success") setBookings(data.data);
+                });
+            }}
+          />
         )}
         {activeTab === "revenue" && <RevenueTab cruises={cruises} />}
         {activeTab === "bookings" && (

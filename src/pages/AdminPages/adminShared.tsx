@@ -61,6 +61,11 @@ export interface Booking {
   status: BookingStatus;
   paymentMethod: string;
   bookedDate: string;
+  cancellation_reason?: string | null;
+  cancellation_fee?: number;
+  refund_amount?: number;
+  refund_status?: "pending" | "refund" | null;
+  cancelled_at?: string | null;
 }
 
 export interface DashboardStats {
@@ -70,18 +75,34 @@ export interface DashboardStats {
   totalGuests: number;
 }
 
-export const formatCurrency = (amount: number) => {
-  if (amount === undefined || amount === null || isNaN(amount)) return "0 VNĐ";
-  return amount.toLocaleString("vi-VN") + " VNĐ";
+export const formatCurrency = (amount: number | string) => {
+  if (amount === undefined || amount === null || amount === "") return "0 VNĐ";
+
+  // Ép kiểu về số và làm tròn (cắt bỏ đuôi .00)
+  const numericAmount = Math.round(Number(amount));
+
+  if (isNaN(numericAmount)) return "0 VNĐ";
+
+  // Dùng Intl.NumberFormat chuẩn của Việt Nam
+  return new Intl.NumberFormat("vi-VN").format(numericAmount) + " VNĐ";
 };
 
-export const formatCompactCurrency = (amount: number) => {
-  if (amount === undefined || amount === null || isNaN(amount)) return "0 VNĐ";
-  if (amount >= 1000000000)
-    return (amount / 1000000000).toFixed(2).replace(/\.00$/, "") + " Tỷ VNĐ";
-  if (amount >= 1000000)
-    return (amount / 1000000).toFixed(2).replace(/\.00$/, "") + " Tr VNĐ";
-  return amount.toLocaleString("vi-VN") + " VNĐ";
+export const formatCompactCurrency = (amount: number | string) => {
+  if (amount === undefined || amount === null || amount === "") return "0 VNĐ";
+
+  const numericAmount = Math.round(Number(amount));
+  if (isNaN(numericAmount)) return "0 VNĐ";
+
+  if (numericAmount >= 1000000000)
+    return (
+      (numericAmount / 1000000000).toFixed(2).replace(/\.00$/, "") + " Tỷ VNĐ"
+    );
+  if (numericAmount >= 1000000)
+    return (
+      (numericAmount / 1000000).toFixed(2).replace(/\.00$/, "") + " Tr VNĐ"
+    );
+
+  return new Intl.NumberFormat("vi-VN").format(numericAmount) + " VNĐ";
 };
 
 export const getStatusBadge = (status: BookingStatus) => {

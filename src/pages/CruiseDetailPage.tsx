@@ -674,10 +674,8 @@ export function CruiseDetailPage() {
 
               <ScheduleCalendar
                 schedules={
-                  cruise.schedules?.filter(
-                    (s: any) =>
-                      s.status === "active",
-                  ) || []
+                  cruise.schedules?.filter((s: any) => s.status === "active") ||
+                  []
                 }
                 selectedId={selectedScheduleId}
                 onSelect={setSelectedScheduleId}
