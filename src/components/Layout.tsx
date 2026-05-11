@@ -259,7 +259,7 @@ export function Layout() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  to="/search"
+                  to="/search?location=Vịnh+hạ+long"
                   className="hover:text-[#D4AF37] transition-colors"
                 >
                   Vịnh Hạ Long
@@ -267,26 +267,10 @@ export function Layout() {
               </li>
               <li>
                 <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Đảo Phú Quốc
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/search"
+                  to="/search?location=Vịnh+lan+hạ"
                   className="hover:text-[#D4AF37] transition-colors"
                 >
                   Vịnh Lan Hạ
-                </Link>
-              </li>
-              <li>
-                <Link
-                  to="/search"
-                  className="hover:text-[#D4AF37] transition-colors"
-                >
-                  Hải Trình Xuyên Á
                 </Link>
               </li>
             </ul>
@@ -297,24 +281,24 @@ export function Layout() {
             <h4 className="text-white font-semibold mb-4">Hỗ Trợ</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#" className="hover:text-[#D4AF37] transition-colors">
+                <Link
+                  to="/about"
+                  className="hover:text-[#D4AF37] transition-colors"
+                >
                   Liên Hệ
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-[#D4AF37] transition-colors">
-                  Câu Hỏi Thường Gặp
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-[#D4AF37] transition-colors">
-                  Quản Lý Đặt Phòng
-                </a>
+                <Link
+                  to="/offers"
+                  className="hover:text-[#D4AF37] transition-colors"
+                >
+                  Ưu Đãi & Khuyến Mãi
+                </Link>
               </li>
             </ul>
           </div>
 
-          {/* Cột 4: Theo dõi chúng tôi - ĐÃ CẬP NHẬT VỚI ICON */}
           <div>
             <h4 className="text-white font-semibold mb-4">
               Theo dõi chúng tôi trên
