@@ -1,4 +1,13 @@
-import { Plus, Bed, Image, Users, Edit, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Bed,
+  Image,
+  Users,
+  Edit,
+  Trash2,
+  Maximize, // Thêm icon Diện tích
+  Layers, // Thêm icon Tầng
+} from "lucide-react";
 import { Cabin, Cruise, formatCurrency } from "./adminShared";
 
 interface Props {
@@ -79,21 +88,33 @@ export function CabinsTab({
                 </div>
               </div>
               <div className="p-5">
-                <h4 className="font-bold text-[#0A192F] text-lg mb-1">
+                <h4 className="font-bold text-[#0A192F] text-lg mb-2">
                   {cabin.name}
                 </h4>
-                <div className="flex items-center gap-4 text-xs text-slate-500 mb-4">
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" /> Tối đa {cabin.capacity}
+
+                {/* ĐÃ BỔ SUNG DIỆN TÍCH VÀ TẦNG VÀO KHU VỰC NÀY */}
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-4">
+                  <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                    <Users className="w-3.5 h-3.5" /> Max {cabin.capacity}
                   </span>
+                  <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                    <Maximize className="w-3.5 h-3.5" /> {cabin.area || 20} m²
+                  </span>
+                  <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                    <Layers className="w-3.5 h-3.5" /> Tầng {cabin.deck || 1}
+                  </span>
+                </div>
+
+                <div className="mb-4">
                   <span
-                    className={`font-bold ${cabin.available > 0 ? "text-emerald-600" : "text-red-500"}`}
+                    className={`text-xs font-bold px-2 py-1 rounded-full ${cabin.available > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"}`}
                   >
                     {cabin.available > 0
                       ? `Còn ${cabin.available} phòng`
                       : "Hết phòng"}
                   </span>
                 </div>
+
                 <div className="text-xl font-bold text-[#D4AF37] mb-5">
                   {formatCurrency(cabin.pricePerNight)}{" "}
                   <span className="text-xs text-slate-400 font-normal">
@@ -109,7 +130,7 @@ export function CabinsTab({
                   </button>
                   <button
                     onClick={() => setDeleteCabin(cabin)}
-                    className="p-2 bg-white text-slate-400 rounded-lg border border-slate-200 hover:border-[#0A192F] hover:text-[#0A192F] hover:bg-slate-50 transition-all"
+                    className="p-2 bg-white text-slate-400 rounded-lg border border-slate-200 hover:border-red-500 hover:text-red-500 hover:bg-red-50 transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

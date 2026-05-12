@@ -40,9 +40,7 @@ import { CruisesTab } from "../AdminPages/CruisesTab";
 import { CabinsTab } from "../AdminPages/CabinsTab";
 import { AccountsTab } from "../AdminPages/AccountsTab";
 
-// ─── IMPORT CÁC MODALS (Lưu ý: Bạn cần tách các Modal này ra file riêng hoặc để chung trong thư mục AdminPage) ───
-// Giả định bạn đã tạo file Modals.tsx chứa các hàm này, nếu chưa, hãy tạo nó và copy code Modal từ file gốc cũ sang.
-import { CruiseModal, CabinModal, AccountModal, DeleteConfirm } from "./Modals";
+import { CruiseModal, CabinModal, AccountModal, DeleteConfirm } from "./Modals"; 
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
@@ -310,7 +308,6 @@ export function AdminDashboardPage() {
       // 1. Gỡ dữ liệu từ Backend ra trước
       const data = await res.json();
 
-      //  2. BẮT KHIÊN BẢO VỆ (Lỗi 400 - Ràng buộc lịch trình/đơn hàng)
       if (res.status === 400) {
         toast.error(data.message); // Hiển thị nguyên văn lời từ chối của Backend
         setDeleteCabin(null); // Tắt modal xác nhận

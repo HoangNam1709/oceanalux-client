@@ -200,6 +200,7 @@ export function CruiseDetailPage() {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [guestCount, setGuestCount] = useState(2);
+
   // 1. API: LẤY DỮ LIỆU BAN ĐẦU
   useEffect(() => {
     // Chỉ chạy khi đã có dữ liệu cruise và có mảng images
@@ -228,7 +229,6 @@ export function CruiseDetailPage() {
     if (!cruise?.id || !echo) return;
 
     const channel = echo.channel("rooms").listen(".RoomReleased", (e: any) => {
-      // Nếu sự kiện Real-time báo về mà không khớp với ID Lịch trình khách đang xem -> BỎ QUA NGAY!
       if (
         e.schedule_id &&
         String(e.schedule_id) !== String(selectedScheduleId)
@@ -290,11 +290,19 @@ export function CruiseDetailPage() {
       );
       return;
     }
+    const selectedSchedule = cruise.schedules?.find(
+      (s: any) => s.id === selectedScheduleId,
+    );
+    // Cắt lấy phần ngày YYYY-MM-DD từ chuỗi datetime của backend (nếu có)
+    const startDateRaw =
+      selectedSchedule?.departure_time || selectedSchedule?.departure_date;
+    const startDate = startDateRaw ? startDateRaw.split(" ")[0] : "";
+    // ==========================================
 
     const token = localStorage.getItem("token");
 
-    // Nối thêm số lượng khách vào URL
-    const checkoutUrl = `/checkout?cruiseId=${id}&cabinId=${cabinId}&scheduleId=${selectedScheduleId}&guests=${guestCount}`;
+    // Nối thêm số lượng khách VÀ ngày khởi hành vào URL
+    const checkoutUrl = `/checkout?cruiseId=${id}&cabinId=${cabinId}&scheduleId=${selectedScheduleId}&guests=${guestCount}&startDate=${startDate}`;
 
     if (!token) {
       toast.error("Vui lòng đăng nhập để giữ chỗ!");

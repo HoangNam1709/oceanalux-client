@@ -17,9 +17,6 @@ import {
   Pagination,
 } from "./adminShared";
 
-// ==========================================
-// COMPONENT: MODAL HỦY & HOÀN TIỀN CHO ADMIN
-// ==========================================
 const AdminCancelRefundModal = ({
   booking,
   onClose,

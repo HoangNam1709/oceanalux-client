@@ -28,7 +28,7 @@ export function PaymentResultPage() {
   const bankCode = searchParams.get("vnp_BankCode");
   const payDate = searchParams.get("vnp_PayDate"); // yyyyMMddHHmmss
 
-  // ─── 🚀 GỌI API BACKEND ĐỂ CẬP NHẬT DATABASE ─────────────────────────────
+  // ───  GỌI API BACKEND ĐỂ CẬP NHẬT DATABASE ─────────────────────────────
   useEffect(() => {
     const queryString = searchParams.toString();
 

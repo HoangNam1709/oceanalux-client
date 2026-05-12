@@ -69,15 +69,38 @@ export function BookingDetailPage() {
   };
 
   const handlePayment = () => {
-    const cruiseId =
-      booking?.schedule?.cruise_id || booking?.schedule?.cruise?.id || "";
-    const cabinId =
-      booking?.details?.[0]?.cabin_class_id ||
-      booking?.details?.[0]?.cabinClass?.id ||
-      "";
-    navigate(
-      `/checkout/payment/${booking.id}?cruise=${cruiseId}&cabin=${cabinId}`,
-    );
+    try {
+      // 1. Lấy Cruise ID
+      const cruiseId =
+        booking?.schedule?.cruise_id || booking?.schedule?.cruise?.id || "";
+
+      // 2. Lấy Cabin ID
+      const cabinId =
+        booking?.details?.[0]?.cabin_class_id ||
+        booking?.details?.[0]?.cabinClass?.id ||
+        booking?.details?.[0]?.cabin_class?.id ||
+        "";
+
+      // 3. Lấy Ngày Nhận Phòng (Start Date)
+      const startDateRaw =
+        booking?.schedule?.departure_time ||
+        booking?.schedule?.departure_date ||
+        booking?.start_date ||
+        "";
+      const startDate = startDateRaw ? startDateRaw.split(" ")[0] : "";
+
+      // 4. Lấy Schedule ID và Guests
+      const scheduleId = booking?.schedule_id || booking?.schedule?.id || "";
+      const guests = booking?.total_guests || booking?.guests || 2;
+
+      // CHUYỂN HƯỚNG SANG CHECKOUT KÈM FULL THAM SỐ
+      navigate(
+        `/checkout/payment/${booking.id}?cruiseId=${cruiseId}&cabinId=${cabinId}&scheduleId=${scheduleId}&startDate=${startDate}&guests=${guests}`,
+      );
+    } catch (err) {
+      console.error("Lỗi chuyển hướng thanh toán:", err);
+      toast.error("Đã xảy ra lỗi khi chuyển hướng. Vui lòng thử lại!");
+    }
   };
   // HÀM XỬ LÝ XUẤT PDF VỚI HTML-TO-IMAGE
   const handleDownloadPDF = async () => {

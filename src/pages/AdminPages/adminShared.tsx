@@ -26,6 +26,8 @@ export interface Cabin {
   pricePerNight: number;
   capacity: number;
   available: number;
+  area: number;
+  deck: number;
   amenities: string[];
   imageUrl: string;
 }
@@ -45,6 +47,7 @@ export interface Cruise {
   cabins: Cabin[];
   featured: boolean;
   schedules?: any[];
+  facilityIds?: number[];
 }
 
 export interface Booking {

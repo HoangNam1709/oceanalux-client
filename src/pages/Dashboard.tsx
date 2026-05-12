@@ -82,12 +82,16 @@ const CancelBookingModal = ({
   const diffTime = departureDate.getTime() - today.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+  // CHÍNH SÁCH HOÀN TIỀN: >= 7 ngày hoàn 75%, 3-6 ngày hoàn 50%, < 3 ngày không hoàn
   let estimatedRefund = 0;
   if (booking.status === "paid") {
-    if (diffDays >= 7) estimatedRefund = booking.total_price;
-    else if (diffDays >= 3 && diffDays <= 6)
+    if (diffDays >= 7) {
+      estimatedRefund = booking.total_price * 0.75;
+    } else if (diffDays >= 3 && diffDays <= 6) {
       estimatedRefund = booking.total_price * 0.5;
-    else estimatedRefund = 0;
+    } else {
+      estimatedRefund = 0;
+    }
   }
 
   const handleCancel = async () => {
@@ -235,9 +239,6 @@ const CancelBookingModal = ({
   );
 };
 
-// ==========================================
-// COMPONENT CHÍNH: DASHBOARD
-// ==========================================
 export function Dashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("bookings");
@@ -253,11 +254,16 @@ export function Dashboard() {
   const [editPhone, setEditPhone] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 🚀 STATE PHÂN TRANG (PAGINATION)
   const [pageUpcoming, setPageUpcoming] = useState(1);
   const [pagePast, setPagePast] = useState(1);
   const [pageRefunds, setPageRefunds] = useState(1);
 
+  const [refundSortOrder, setRefundSortOrder] = useState<"desc" | "asc">(
+    "desc",
+  );
+  const [refundFilterType, setRefundFilterType] = useState<
+    "all" | "free" | "refund"
+  >("all");
   const UPCOMING_PER_PAGE = 3;
   const PAST_PER_PAGE = 5;
   const REFUNDS_PER_PAGE = 5;
@@ -319,23 +325,34 @@ export function Dashboard() {
     );
   }, [allBookings]);
 
-  // Đơn trong quá khứ (Đã đi xong, HOẶC đã hủy nhưng KHÔNG được hoàn tiền)
+  // Đơn trong quá khứ (Chỉ hiển thị Đã đi xong - completed)
   const pastBookings = useMemo(() => {
-    return allBookings.filter(
-      (b: any) =>
-        b.status === "completed" ||
-        (b.status === "cancelled" &&
-          (!b.refund_amount || b.refund_amount <= 0)),
-    );
+    return allBookings.filter((b: any) => b.status === "completed");
   }, [allBookings]);
 
-  // 🚀 TÁCH RIÊNG CÁC ĐƠN YÊU CẦU HOÀN TIỀN (Chỉ lấy đơn bị hủy VÀ có tiền hoàn > 0)
+  // LẤY TẤT CẢ ĐƠN HỦY (Có phí & Không phí) + LỌC + SẮP XẾP
+  // LẤY TẤT CẢ ĐƠN HỦY (Có phí & Không phí) + LỌC + SẮP XẾP
   const refundBookings = useMemo(() => {
-    return allBookings.filter(
-      (b: any) => b.status === "cancelled" && b.refund_amount > 0,
-    );
-  }, [allBookings]);
+    let filtered = allBookings.filter((b: any) => b.status === "cancelled");
 
+    // Lọc theo loại hủy
+    if (refundFilterType === "refund") {
+      filtered = filtered.filter((b: any) => b.refund_amount > 0);
+    } else if (refundFilterType === "free") {
+      filtered = filtered.filter(
+        (b: any) => !b.refund_amount || b.refund_amount <= 0,
+      );
+    }
+
+    // Sắp xếp
+    filtered.sort((a: any, b: any) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return refundSortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
+
+    return filtered;
+  }, [allBookings, refundFilterType, refundSortOrder]);
   // TÍNH TOÁN DỮ LIỆU ĐỂ HIỂN THỊ TRÊN TRANG HIỆN TẠI
   const totalUpcomingPages = Math.ceil(
     upcomingBookings.length / UPCOMING_PER_PAGE,
@@ -437,12 +454,11 @@ export function Dashboard() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* SIDEBAR NAVIGATION */}
           <div className="w-full lg:w-64 shrink-0">
             <nav className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-2 sticky top-28">
               {[
                 { id: "bookings", icon: Anchor, label: "Chuyến Đi Của Tôi" },
-                { id: "refunds", icon: RefreshCcw, label: "Lịch Sử Hoàn Tiền" }, // 🚀 MENU MỚI
+                { id: "refunds", icon: RefreshCcw, label: "Lịch Sử Hoàn Tiền" },
                 { id: "profile", icon: User, label: "Thông Tin Cá Nhân" },
                 { id: "settings", icon: Settings, label: "Cài Đặt" },
               ].map((item) => (
@@ -591,7 +607,7 @@ export function Dashboard() {
                                 Quản Lý
                               </button>
 
-                              {/* 🚀 CHỈ ĐƠN PAID MỚI ĐƯỢC PHÉP HỦY Ở ĐÂY */}
+                              {/* CHỈ ĐƠN PAID MỚI ĐƯỢC PHÉP HỦY Ở ĐÂY */}
                               {booking.status === "paid" && (
                                 <button
                                   onClick={() => setBookingToCancel(booking)}
@@ -615,10 +631,32 @@ export function Dashboard() {
                                         booking?.details?.[0]?.cabin_class
                                           ?.id ||
                                         "";
+                                      const startDateRaw =
+                                        booking?.schedule?.departure_time ||
+                                        booking?.schedule?.departure_date ||
+                                        booking?.start_date ||
+                                        "";
+                                      const startDate = startDateRaw
+                                        ? startDateRaw.split(" ")[0]
+                                        : "";
+                                      const scheduleId =
+                                        booking?.schedule_id ||
+                                        booking?.schedule?.id ||
+                                        "";
+                                      const guests =
+                                        booking?.total_guests ||
+                                        booking?.guests ||
+                                        2;
+
                                       navigate(
-                                        `/checkout/payment/${booking.id}?cruise=${cruiseId}&cabin=${cabinId}`,
+                                        `/checkout/payment/${booking.id}?cruiseId=${cruiseId}&cabinId=${cabinId}&scheduleId=${scheduleId}&startDate=${startDate}&guests=${guests}`,
                                       );
-                                    } catch (err) {}
+                                    } catch (err) {
+                                      console.error(
+                                        "Lỗi chuyển hướng thanh toán:",
+                                        err,
+                                      );
+                                    }
                                   }}
                                   className="flex-1 bg-amber-500 text-slate-900 py-3 rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm"
                                 >
@@ -650,7 +688,7 @@ export function Dashboard() {
                   )}
                 </section>
 
-                {/* ĐƠN HÀNG TRONG QUÁ KHỨ (ĐÃ TÁCH HOÀN TIỀN RA) */}
+                {/* ĐƠN HÀNG TRONG QUÁ KHỨ (CHỈ COMPLETED) */}
                 <section>
                   <h2 className="text-xl font-serif font-bold text-slate-900 mb-6 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-slate-400" /> Lịch Sử Chuyến
@@ -682,16 +720,8 @@ export function Dashboard() {
                               </h3>
                               <p className="text-sm text-slate-600">
                                 Trạng thái:{" "}
-                                <span
-                                  className={
-                                    booking.status === "cancelled"
-                                      ? "text-slate-500 font-medium"
-                                      : "text-green-500 font-medium"
-                                  }
-                                >
-                                  {booking.status === "cancelled"
-                                    ? "Đã hủy (Không phí)"
-                                    : "Hoàn thành"}
+                                <span className="text-green-500 font-medium">
+                                  Hoàn thành
                                 </span>
                               </p>
                             </div>
@@ -706,26 +736,22 @@ export function Dashboard() {
                                 Xem Biên Lai
                               </button>
 
-                              {booking.status === "completed" &&
-                                !booking.is_reviewed && (
-                                  <button
-                                    onClick={() =>
-                                      setSelectedReviewBooking(booking)
-                                    }
-                                    className="text-sm font-bold text-white bg-amber-500 px-5 py-2.5 rounded-xl shadow-sm shadow-amber-200 hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
-                                  >
-                                    <Star className="w-4 h-4 fill-white" /> Đánh
-                                    Giá
-                                  </button>
-                                )}
-
-                              {booking.status === "completed" &&
-                                booking.is_reviewed && (
-                                  <span className="text-sm font-medium text-green-600 px-4 py-2 flex items-center justify-center gap-1.5 bg-green-50 rounded-xl border border-green-100">
-                                    <CheckCircle2 className="w-4 h-4" /> Đã đánh
-                                    giá
-                                  </span>
-                                )}
+                              {!booking.is_reviewed ? (
+                                <button
+                                  onClick={() =>
+                                    setSelectedReviewBooking(booking)
+                                  }
+                                  className="text-sm font-bold text-white bg-amber-500 px-5 py-2.5 rounded-xl shadow-sm shadow-amber-200 hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
+                                >
+                                  <Star className="w-4 h-4 fill-white" /> Đánh
+                                  Giá
+                                </button>
+                              ) : (
+                                <span className="text-sm font-medium text-green-600 px-4 py-2 flex items-center justify-center gap-1.5 bg-green-50 rounded-xl border border-green-100">
+                                  <CheckCircle2 className="w-4 h-4" /> Đã đánh
+                                  giá
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -745,17 +771,49 @@ export function Dashboard() {
               </motion.div>
             )}
 
-            {/* 🚀 TAB MỚI: LỊCH SỬ HOÀN TIỀN */}
             {activeTab === "refunds" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-8"
+                className="space-y-6"
               >
-                <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
-                  <RefreshCcw className="w-5 h-5 text-amber-500" /> Danh Sách
-                  Hoàn Tiền
-                </h2>
+                {/* THANH CÔNG CỤ: TIÊU ĐỀ & BỘ LỌC */}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+                  <h2 className="text-xl font-serif font-bold text-slate-900 flex items-center gap-2">
+                    <RefreshCcw className="w-5 h-5 text-amber-500" /> Lịch Sử
+                    Hủy & Hoàn Tiền
+                  </h2>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Bộ lọc Loại hủy */}
+                    <select
+                      value={refundFilterType}
+                      onChange={(e) => {
+                        setRefundFilterType(
+                          e.target.value as "all" | "free" | "refund",
+                        );
+                        setPageRefunds(1); // Reset lại trang 1 khi đổi bộ lọc
+                      }}
+                      className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="all">Tất cả loại hủy</option>
+                      <option value="refund">Hủy có hoàn tiền</option>
+                      <option value="free">Hủy miễn phí</option>
+                    </select>
+
+                    {/* Sắp xếp Ngày */}
+                    <select
+                      value={refundSortOrder}
+                      onChange={(e) =>
+                        setRefundSortOrder(e.target.value as "asc" | "desc")
+                      }
+                      className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="desc">Ngày đặt: Mới nhất</option>
+                      <option value="asc">Ngày đặt: Cũ nhất</option>
+                    </select>
+                  </div>
+                </div>
 
                 <div className="space-y-4">
                   {paginatedRefunds.length > 0 ? (
@@ -774,8 +832,15 @@ export function Dashboard() {
                             className="w-24 h-24 rounded-xl object-cover shrink-0 grayscale opacity-70"
                           />
                           <div className="flex-1 text-center md:text-left w-full">
-                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                              Mã đơn: {booking.booking_code}
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-center md:justify-start gap-2">
+                              <span>Mã đơn: {booking.booking_code}</span>
+                              <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                              <span>
+                                Ngày đặt:{" "}
+                                {new Date(
+                                  booking.created_at,
+                                ).toLocaleDateString("vi-VN")}
+                              </span>
                             </div>
                             <h3 className="text-lg font-bold font-serif text-slate-900 mb-1">
                               {booking?.schedule?.cruise?.name ||
@@ -784,46 +849,52 @@ export function Dashboard() {
                             <p className="text-sm text-slate-600 mb-3">
                               Trạng thái:{" "}
                               <span className="text-red-500 font-medium">
-                                Đã hủy
+                                Đã hủy đơn
                               </span>
                             </p>
 
-                            {/* THANH TRẠNG THÁI HOÀN TIỀN (GIAO DIỆN LỚN) */}
-                            <div
-                              className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center gap-3 text-sm font-bold w-full
-                                ${booking.refund_status !== "refund" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
-                              `}
-                            >
-                              {booking.refund_status !== "refund" ? (
-                                <>
-                                  <RefreshCcw className="w-5 h-5 animate-spin-slow shrink-0" />
-                                  <span>
-                                    Đang chờ kế toán xử lý hoàn trả số tiền:{" "}
-                                    <br className="md:hidden" />
-                                    <span className="text-xl md:ml-1 text-amber-600">
-                                      {new Intl.NumberFormat("vi-VN").format(
-                                        booking.refund_amount,
-                                      )}{" "}
-                                      VNĐ
+                            {booking.refund_amount > 0 ? (
+                              <div
+                                className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center gap-3 text-sm font-bold w-full
+                                  ${booking.refund_status !== "refund" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
+                                `}
+                              >
+                                {booking.refund_status !== "refund" ? (
+                                  <>
+                                    <RefreshCcw className="w-5 h-5 animate-spin-slow shrink-0" />
+                                    <span>
+                                      Đang chờ kế toán xử lý hoàn trả số tiền:{" "}
+                                      <br className="md:hidden" />
+                                      <span className="text-xl md:ml-1 text-amber-600">
+                                        {new Intl.NumberFormat("vi-VN").format(
+                                          booking.refund_amount,
+                                        )}{" "}
+                                        VNĐ
+                                      </span>
                                     </span>
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 className="w-5 h-5 shrink-0" />
-                                  <span>
-                                    Hệ thống đã hoàn trả thành công số tiền:{" "}
-                                    <br className="md:hidden" />
-                                    <span className="text-xl md:ml-1 text-emerald-600">
-                                      {new Intl.NumberFormat("vi-VN").format(
-                                        booking.refund_amount,
-                                      )}{" "}
-                                      VNĐ
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="w-5 h-5 shrink-0" />
+                                    <span>
+                                      Hệ thống đã hoàn trả thành công số tiền:{" "}
+                                      <br className="md:hidden" />
+                                      <span className="text-xl md:ml-1 text-emerald-600">
+                                        {new Intl.NumberFormat("vi-VN").format(
+                                          booking.refund_amount,
+                                        )}{" "}
+                                        VNĐ
+                                      </span>
                                     </span>
-                                  </span>
-                                </>
-                              )}
-                            </div>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="px-4 py-2.5 rounded-xl border bg-slate-50 text-slate-600 border-slate-200 text-sm font-semibold inline-flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-slate-400" />
+                                Hủy miễn phí (Không phát sinh tiền hoàn trả)
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto mt-4 md:mt-0">
@@ -845,8 +916,18 @@ export function Dashboard() {
                   ) : (
                     <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
                       <p className="text-slate-500">
-                        Bạn không có yêu cầu hoàn tiền nào.
+                        Không có dữ liệu hủy đơn / hoàn tiền phù hợp.
                       </p>
+                      {refundFilterType !== "all" && (
+                        <button
+                          onClick={() => {
+                            setRefundFilterType("all");
+                          }}
+                          className="mt-3 text-sm font-bold text-amber-500 hover:underline"
+                        >
+                          Xóa bộ lọc
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -966,7 +1047,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* MODAL HỦY ĐƠN HÀNG NẰM Ở ĐÂY */}
+      {/* MODAL HỦY ĐƠN HÀNG */}
       <AnimatePresence>
         {bookingToCancel && (
           <CancelBookingModal
@@ -980,6 +1061,7 @@ export function Dashboard() {
         )}
       </AnimatePresence>
 
+      {/* MODAL ĐÁNH GIÁ */}
       <ReviewModal
         isOpen={!!selectedReviewBooking}
         onClose={() => setSelectedReviewBooking(null)}

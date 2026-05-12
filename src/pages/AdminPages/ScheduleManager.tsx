@@ -226,7 +226,7 @@ export function ScheduleManager({
         )}
       </div>
 
-      {/* FORM THÊM MỚI (ĐỒNG BỘ THƯƠNG HIỆU) */}
+      {/* FORM THÊM MỚI */}
       {isAdding && (
         <div className="bg-white p-5 rounded-xl mb-6 border-l-4 border-l-[#D4AF37] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-y-slate-100 border-r-slate-100 animate-in slide-in-from-top-2">
           <div className="flex justify-between items-center mb-4">
@@ -309,7 +309,7 @@ export function ScheduleManager({
         </div>
       )}
 
-      {/* FORM SỬA (ĐỒNG BỘ THƯƠNG HIỆU) */}
+      {/* FORM SỬA LỊCH TRÌNH */}
       {editingSchedule && (
         <div className="bg-white p-5 rounded-xl mb-6 border-l-4 border-l-[#0A192F] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-y-slate-100 border-r-slate-100 animate-in slide-in-from-top-2">
           <div className="flex justify-between items-center mb-4">
@@ -329,9 +329,14 @@ export function ScheduleManager({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
                 Ngày đi
               </label>
+              {/* SỬA LỖI Ở ĐÂY: Dùng substring(0, 10) để luôn lấy đúng YYYY-MM-DD */}
               <input
                 type="date"
-                value={editingSchedule.departure_date.split(" ")[0]}
+                value={
+                  editingSchedule.departure_date
+                    ? editingSchedule.departure_date.substring(0, 10)
+                    : ""
+                }
                 onChange={handleEditDepartureChange}
                 className="w-full border-slate-200 rounded-lg p-2.5 text-sm focus:ring-[#0A192F] focus:border-[#0A192F] bg-slate-50"
               />
@@ -340,10 +345,15 @@ export function ScheduleManager({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
                 Ngày về ({durationDays} ngày)
               </label>
+              {/* SỬA LỖI Ở ĐÂY */}
               <input
                 type="date"
                 disabled
-                value={editingSchedule.return_date.split(" ")[0]}
+                value={
+                  editingSchedule.return_date
+                    ? editingSchedule.return_date.substring(0, 10)
+                    : ""
+                }
                 className="w-full border-transparent bg-slate-100 text-slate-400 cursor-not-allowed rounded-lg p-2.5 text-sm font-medium"
               />
             </div>

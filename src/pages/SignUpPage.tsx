@@ -75,7 +75,7 @@ export function SignUpPage() {
         response.data.message || "Mã OTP đã được gửi tới email của bạn.",
       );
       setStep(2);
-      setCountdown(60); // Bắt đầu đếm ngược 60s chống spam
+      setCountdown(60); 
     } catch (err: any) {
       if (err.response?.status === 429) {
         setError(

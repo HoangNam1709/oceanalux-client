@@ -7,6 +7,7 @@ import {
   Clock,
   MapPin,
   ChevronRight,
+  ChevronLeft, // Thêm icon cho phân trang
   SlidersHorizontal,
   Ship,
   Loader2,
@@ -15,6 +16,43 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
+
+// ==========================================
+// COMPONENT: PHÂN TRANG
+// ==========================================
+const PaginationControls = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) => {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex justify-center items-center gap-4 mt-8 pt-6 border-t border-slate-200">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm bg-white"
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <span className="text-sm font-bold text-slate-700 bg-white px-5 py-2.5 rounded-xl border border-slate-100 shadow-sm">
+        Trang {currentPage} / {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm bg-white"
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+};
 
 export function SearchPage() {
   const [searchParams] = useSearchParams();
@@ -27,14 +65,22 @@ export function SearchPage() {
   const [cruises, setCruises] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // STATE MỚI: Nhận biết đây có phải là danh sách "Gợi ý" hay không
   const [isSuggested, setIsSuggested] = useState(false);
   const [suggestReason, setSuggestReason] = useState("");
 
   const [destination, setDestination] = useState(urlLocation);
   const [priceRange, setPriceRange] = useState(50000000);
-  const [minRating, setMinRating] = useState(3); // Mặc định 3 sao
+  const [minRating, setMinRating] = useState(3);
   const [duration, setDuration] = useState("any");
+
+  // 🚀 STATE PHÂN TRANG
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5; // Số sản phẩm trên 1 trang
+
+  // Khi bộ lọc thay đổi, TỰ ĐỘNG RESET VỀ TRANG 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [destination, priceRange, minRating, duration]);
 
   // GỌI API THEO CHIẾN THUẬT "FALLBACK" (LÙI BƯỚC)
   useEffect(() => {
@@ -44,18 +90,16 @@ export function SearchPage() {
       setSuggestReason("");
 
       try {
-        // LẦN 1: TÌM CHÍNH XÁC YÊU CẦU
         let res = await axios.get("http://localhost:8081/api/cruises", {
           params: { location: urlLocation, date: urlDate, guests: urlGuests },
         });
         let data = res.data.data || [];
 
-        // LẦN 2: NẾU KHÔNG ĐỦ CHỖ, BỎ QUA "SỐ KHÁCH" ĐỂ GỢI Ý
         if (data.length === 0 && urlGuests) {
           const resFallback1 = await axios.get(
             "http://localhost:8081/api/cruises",
             {
-              params: { location: urlLocation, date: urlDate }, // Ép Backend không lọc số khách nữa
+              params: { location: urlLocation, date: urlDate },
             },
           );
           data = resFallback1.data.data || [];
@@ -67,12 +111,11 @@ export function SearchPage() {
           }
         }
 
-        // LẦN 3: NẾU VẪN KHÔNG CÓ, BỎ QUA CẢ "NGÀY ĐI"
         if (data.length === 0 && (urlGuests || urlDate)) {
           const resFallback2 = await axios.get(
             "http://localhost:8081/api/cruises",
             {
-              params: { location: urlLocation }, // Chỉ giữ lại điểm đến
+              params: { location: urlLocation },
             },
           );
           data = resFallback2.data.data || [];
@@ -133,6 +176,19 @@ export function SearchPage() {
     return true;
   });
 
+  // 🚀 TÍNH TOÁN DỮ LIỆU PHÂN TRANG (PAGINATION)
+  const totalPages = Math.ceil(filteredCruises.length / ITEMS_PER_PAGE);
+  const paginatedCruises = filteredCruises.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  );
+
+  // Hàm chuyển trang kèm cuộn lên trên cùng mượt mà
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
@@ -153,12 +209,14 @@ export function SearchPage() {
             Khám Phá Hành Trình
           </h1>
           <p className="text-slate-600">
-            Tìm thấy {filteredCruises.length} du thuyền phù hợp với bộ lọc.
+            Tìm thấy{" "}
+            <strong className="text-amber-600">{filteredCruises.length}</strong>{" "}
+            du thuyền phù hợp với bộ lọc.
           </p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Filters Sidebar (GIỮ NGUYÊN CODE CŨ BÊN NÀY) */}
+          {/* Filters Sidebar */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -291,7 +349,7 @@ export function SearchPage() {
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-4"
+                className="mb-6 bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-4 shadow-sm"
               >
                 <div className="p-2 bg-amber-100 rounded-full shrink-0">
                   <AlertCircle className="w-6 h-6 text-amber-600" />
@@ -318,7 +376,8 @@ export function SearchPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {filteredCruises.map((cruise, index) => {
+                {/* HIỂN THỊ DANH SÁCH ĐÃ PHÂN TRANG */}
+                {paginatedCruises.map((cruise, index) => {
                   const basePrice =
                     cruise.cabin_classes?.length > 0
                       ? Math.min(
@@ -356,13 +415,13 @@ export function SearchPage() {
                             <div className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">
                               {cruise.destination || "Vịnh Hạ Long"}
                             </div>
-                            <h3 className="text-xl font-bold font-serif text-slate-900 group-hover:text-amber-700 transition-colors">
+                            <h3 className="text-xl font-bold font-serif text-slate-900 group-hover:text-amber-700 transition-colors line-clamp-1">
                               <Link to={`/cruise/${cruise.id}`}>
                                 {cruise.name}
                               </Link>
                             </h3>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0 ml-4">
                             <span className="text-xs text-slate-500 font-medium uppercase tracking-wider block">
                               Chỉ từ
                             </span>
@@ -416,6 +475,13 @@ export function SearchPage() {
                     </motion.div>
                   );
                 })}
+
+                {/* COMPONENT PHÂN TRANG */}
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
               </div>
             )}
           </div>

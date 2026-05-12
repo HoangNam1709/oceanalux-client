@@ -9,10 +9,13 @@ import {
   Edit,
   Bed,
   Trash2,
-  CalendarDays, // 🚀 THÊM ICON NÀY
+  CalendarDays,
+  Image as ImageIcon, // Thêm icon ảnh
 } from "lucide-react";
 import { Cruise, AdminTab, formatCurrency, Pagination } from "./adminShared";
-import { ScheduleManager } from "./ScheduleManager"; // 🚀 IMPORT COMPONENT NÀY VÀO
+import { ScheduleManager } from "./ScheduleManager";
+// 👉 SỬA ĐƯỜNG DẪN IMPORT: Trỏ vào folder modals mới
+import { ImageGalleryModal } from "./Modals";
 
 interface Props {
   cruises: Cruise[];
@@ -20,6 +23,7 @@ interface Props {
   setSelectedCruiseId: (id: string) => void;
   setActiveTab: (tab: AdminTab) => void;
   setDeleteCruise: (c: Cruise) => void;
+  fetchData: () => void; // Thêm hàm load lại dữ liệu khi ảnh thay đổi
 }
 
 export function CruisesTab({
@@ -28,17 +32,17 @@ export function CruisesTab({
   setSelectedCruiseId,
   setActiveTab,
   setDeleteCruise,
+  fetchData,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
-
-  // ─── STATE PHÂN TRANG ───
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
-  // 🚀 THÊM STATE NÀY ĐỂ ĐIỀU KHIỂN ĐÓNG/MỞ NGĂN KÉO LỊCH TRÌNH
+  // State quản lý mở rộng Lịch trình và Gallery
   const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(
     null,
   );
+  const [galleryItem, setGalleryItem] = useState<Cruise | null>(null);
 
   const filteredCruises = cruises.filter((c) =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -89,13 +93,12 @@ export function CruisesTab({
                 key={cruise.id}
                 className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow"
               >
-                {/* ─── PHẦN 1: THÔNG TIN TÀU CHÍNH ─── */}
                 <div className="flex flex-col md:flex-row">
                   <div className="w-full md:w-64 h-48 md:h-auto bg-slate-200 relative shrink-0">
                     <img
                       src={
                         cruise.thumbnail ||
-                        "https://placehold.co/400x300/e2e8f0/64748b?text=OceanaLux"
+                        "https://placehold.co/400x300?text=OceanaLux"
                       }
                       alt={cruise.name}
                       className="w-full h-full object-cover"
@@ -137,8 +140,9 @@ export function CruisesTab({
                           </div>
                         </div>
                       </div>
+
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {cruise.facilities.slice(0, 5).map((f) => (
+                        {(cruise.facilities || []).slice(0, 5).map((f) => (
                           <span
                             key={f}
                             className="px-2 py-1 bg-slate-50 text-slate-600 text-[10px] font-bold rounded border border-slate-100"
@@ -146,22 +150,18 @@ export function CruisesTab({
                             {f}
                           </span>
                         ))}
-                        {cruise.facilities.length > 5 && (
-                          <span className="px-2 py-1 bg-slate-50 text-slate-400 text-[10px] font-bold rounded border border-slate-100">
-                            +{cruise.facilities.length - 5}
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    {/* CÁC NÚT THAO TÁC */}
-                    <div className="mt-6 flex flex-wrap md:flex-nowrap gap-3">
+                    {/* DÃ CẬP NHẬT HÀNG NÚT BẤM */}
+                    <div className="mt-6 flex flex-wrap gap-3">
                       <button
                         onClick={() => setCruiseModal(cruise)}
                         className="flex items-center justify-center gap-2 flex-1 py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
                       >
                         <Edit className="w-4 h-4" /> Sửa
                       </button>
+
                       <button
                         onClick={() => {
                           setSelectedCruiseId(cruise.id);
@@ -169,21 +169,29 @@ export function CruisesTab({
                         }}
                         className="flex items-center justify-center gap-2 flex-1 py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
                       >
-                        <Bed className="w-4 h-4" /> Hạng phòng (
+                        <Bed className="w-4 h-4" /> Phòng (
                         {cruise.cabins?.length || 0})
                       </button>
 
-                      {/* 🚀 NÚT ĐÓNG/MỞ LỊCH TRÌNH MỚI */}
+                      {/* 👉 NÚT ẢNH MỚI TÍCH HỢP */}
+                      <button
+                        onClick={() => setGalleryItem(cruise)}
+                        className="flex items-center justify-center gap-2 flex-1 py-2 bg-slate-50 text-slate-600 border border-slate-200 rounded-lg font-bold text-sm hover:bg-slate-100 transition-colors"
+                      >
+                        <ImageIcon className="w-4 h-4" /> Ảnh (
+                        {(cruise as any).images?.length || 0})
+                      </button>
+
                       <button
                         onClick={() =>
                           setExpandedScheduleId(
                             expandedScheduleId === cruise.id ? null : cruise.id,
                           )
                         }
-                        className={`flex items-center justify-center gap-2 flex-1 py-2 rounded-lg font-bold text-sm transition-colors shadow-sm border ${
+                        className={`flex items-center justify-center gap-2 flex-1 py-2 rounded-lg font-bold text-sm transition-colors border ${
                           expandedScheduleId === cruise.id
-                            ? "bg-amber-500 text-[#0A192F] border-amber-500" // Trạng thái đang mở
-                            : "bg-[#0A192F] text-amber-500 border-[#0A192F] hover:bg-slate-800" // Trạng thái đóng
+                            ? "bg-amber-500 text-[#0A192F] border-amber-500"
+                            : "bg-[#0A192F] text-amber-500 border-[#0A192F] hover:bg-slate-800"
                         }`}
                       >
                         <CalendarDays className="w-4 h-4" /> Lịch trình (
@@ -200,7 +208,7 @@ export function CruisesTab({
                   </div>
                 </div>
 
-                {/* ─── PHẦN 2: NGĂN KÉO LỊCH TRÌNH (Chỉ hiện khi bấm nút) ─── */}
+                {/* Khu vực quản lý lịch trình xổ xuống */}
                 {expandedScheduleId === cruise.id && (
                   <div className="border-t border-slate-100 bg-slate-50/50 p-6 animate-in slide-in-from-top-2">
                     <ScheduleManager
@@ -214,8 +222,7 @@ export function CruisesTab({
             ))}
           </div>
 
-          {/* PHÂN TRANG */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-4">
+          <div className="mt-4">
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -226,6 +233,23 @@ export function CruisesTab({
           </div>
         </>
       )}
+
+      {/* 👉 MODAL GALLERY CHI TIẾT */}
+      <ImageGalleryModal
+        isOpen={!!galleryItem}
+        onClose={() => setGalleryItem(null)}
+        type="cruise"
+        itemId={galleryItem?.id || ""}
+        itemName={galleryItem?.name || ""}
+        // Chỗ này cần lưu ý: API Backend của bạn nên trả về mảng object [{id, image_url}]
+        // cho trường images_objects để có ID mà xóa.
+        initialImages={(galleryItem as any)?.images_objects || []}
+        currentThumbnail={galleryItem?.thumbnail || ""}
+        onUpdate={() => {
+          fetchData(); // Gọi hàm lấy lại dữ liệu từ AdminDashboardPage
+          setGalleryItem(null);
+        }}
+      />
     </div>
   );
 }
