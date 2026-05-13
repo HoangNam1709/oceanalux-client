@@ -83,7 +83,8 @@ export function Layout() {
                   to="/admin"
                   className="text-sm font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1"
                 >
-                  <Shield className="w-4 h-4" /> Quản Trị Hệ Thống
+                  {" "}
+                  Quản Trị Hệ Thống
                 </Link>
               )}
             </nav>

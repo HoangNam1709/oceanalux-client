@@ -119,7 +119,10 @@ const CancelBookingModal = ({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason: reason,
+          refund_amount: estimatedRefund,
+        }),
       });
 
       const data = await res.json();

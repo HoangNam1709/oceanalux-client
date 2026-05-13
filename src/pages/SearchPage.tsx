@@ -7,12 +7,13 @@ import {
   Clock,
   MapPin,
   ChevronRight,
-  ChevronLeft, // Thêm icon cho phân trang
+  ChevronLeft,
   SlidersHorizontal,
   Ship,
   Loader2,
   Sparkles,
   AlertCircle,
+  ArrowDownUp,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -55,7 +56,7 @@ const PaginationControls = ({
 };
 
 export function SearchPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const urlLocation = searchParams.get("location") || "";
   const urlDate = searchParams.get("date") || "";
@@ -64,25 +65,22 @@ export function SearchPage() {
   // STATE LƯU DỮ LIỆU
   const [cruises, setCruises] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [isSuggested, setIsSuggested] = useState(false);
   const [suggestReason, setSuggestReason] = useState("");
-
   const [destination, setDestination] = useState(urlLocation);
   const [priceRange, setPriceRange] = useState(50000000);
   const [minRating, setMinRating] = useState(3);
   const [duration, setDuration] = useState("any");
-
-  // 🚀 STATE PHÂN TRANG
+  const [sortOrder, setSortOrder] = useState<string>("default");
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 5; // Số sản phẩm trên 1 trang
+  const ITEMS_PER_PAGE = 5;
 
   // Khi bộ lọc thay đổi, TỰ ĐỘNG RESET VỀ TRANG 1
   useEffect(() => {
     setCurrentPage(1);
-  }, [destination, priceRange, minRating, duration]);
+  }, [destination, priceRange, minRating, duration, sortOrder]);
 
-  // GỌI API THEO CHIẾN THUẬT "FALLBACK" (LÙI BƯỚC)
+  // GỌI API
   useEffect(() => {
     const fetchCruises = async () => {
       setLoading(true);
@@ -176,14 +174,27 @@ export function SearchPage() {
     return true;
   });
 
-  // 🚀 TÍNH TOÁN DỮ LIỆU PHÂN TRANG (PAGINATION)
-  const totalPages = Math.ceil(filteredCruises.length / ITEMS_PER_PAGE);
-  const paginatedCruises = filteredCruises.slice(
+  const sortedCruises = [...filteredCruises].sort((a, b) => {
+    const priceA =
+      a.cabin_classes?.length > 0
+        ? Math.min(...a.cabin_classes.map((c: any) => c.price))
+        : a.price || 0;
+    const priceB =
+      b.cabin_classes?.length > 0
+        ? Math.min(...b.cabin_classes.map((c: any) => c.price))
+        : b.price || 0;
+
+    if (sortOrder === "price_asc") return priceA - priceB;
+    if (sortOrder === "price_desc") return priceB - priceA;
+    return 0; // "default" giữ nguyên thứ tự API
+  });
+
+  const totalPages = Math.ceil(sortedCruises.length / ITEMS_PER_PAGE);
+  const paginatedCruises = sortedCruises.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE,
   );
 
-  // Hàm chuyển trang kèm cuộn lên trên cùng mượt mà
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -204,15 +215,33 @@ export function SearchPage() {
     <div className="min-h-screen bg-slate-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-serif font-bold text-slate-900 mb-2">
-            Khám Phá Hành Trình
-          </h1>
-          <p className="text-slate-600">
-            Tìm thấy{" "}
-            <strong className="text-amber-600">{filteredCruises.length}</strong>{" "}
-            du thuyền phù hợp với bộ lọc.
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+          <div>
+            <h1 className="text-3xl font-serif font-bold text-slate-900 mb-2">
+              Khám Phá Hành Trình
+            </h1>
+            <p className="text-slate-600">
+              Tìm thấy{" "}
+              <strong className="text-amber-600">{sortedCruises.length}</strong>{" "}
+              du thuyền phù hợp với bộ lọc.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ArrowDownUp className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-semibold text-slate-600">
+              Sắp xếp:
+            </span>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block px-3 py-2 outline-none cursor-pointer"
+            >
+              <option value="default">Mặc định</option>
+              <option value="price_asc">Giá: Thấp đến Cao</option>
+              <option value="price_desc">Giá: Cao xuống Thấp</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -334,6 +363,8 @@ export function SearchPage() {
                   setPriceRange(50000000);
                   setMinRating(3);
                   setDuration("any");
+                  setSortOrder("default");
+                  setSearchParams({});
                 }}
                 className="w-full py-3 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors border border-slate-200 rounded-lg hover:bg-slate-50"
               >
@@ -345,7 +376,7 @@ export function SearchPage() {
           {/* Results Grid */}
           <div className="flex-1">
             {/* BANNER GỢI Ý THÔNG MINH KHI KHÔNG TÌM ĐƯỢC CHÍNH XÁC */}
-            {isSuggested && filteredCruises.length > 0 && (
+            {isSuggested && sortedCruises.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -363,7 +394,7 @@ export function SearchPage() {
               </motion.div>
             )}
 
-            {filteredCruises.length === 0 ? (
+            {sortedCruises.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm">
                 <Ship className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-slate-900 mb-2">
@@ -376,7 +407,6 @@ export function SearchPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* HIỂN THỊ DANH SÁCH ĐÃ PHÂN TRANG */}
                 {paginatedCruises.map((cruise, index) => {
                   const basePrice =
                     cruise.cabin_classes?.length > 0
@@ -476,7 +506,6 @@ export function SearchPage() {
                   );
                 })}
 
-                {/* COMPONENT PHÂN TRANG */}
                 <PaginationControls
                   currentPage={currentPage}
                   totalPages={totalPages}

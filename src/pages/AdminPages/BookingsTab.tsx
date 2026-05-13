@@ -159,7 +159,7 @@ interface Props {
   updatingId: string | number | null;
   handleUpdateStatus: (id: string, status: BookingStatus) => void;
   setSelectedBooking: (b: Booking) => void;
-  refreshData?: () => void; // Thêm prop này để load lại data sau khi admin hủy
+  refreshData?: () => void;
 }
 
 export function BookingsTab({
@@ -176,8 +176,6 @@ export function BookingsTab({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [isExporting, setIsExporting] = useState(false);
-
-  // 🚀 STATE QUẢN LÝ MODAL HOÀN TIỀN
   const [bookingToRefund, setBookingToRefund] = useState<Booking | null>(null);
 
   const filteredBookings = bookings.filter((b) => {
@@ -365,27 +363,31 @@ export function BookingsTab({
                     </td>
                     <td className="py-4 px-5">{getStatusBadge(b.status)}</td>
                     <td className="py-4 px-5">
-                      <div className="flex items-center gap-2">
+                      {/* ĐÃ CHỈNH SỬA: ĐƯA CÁC NÚT VÀO LAYOUT CỐ ĐỊNH */}
+                      <div className="flex items-center gap-2 w-max">
                         <button
                           onClick={() => setSelectedBooking(b)}
-                          className="p-2 rounded-md bg-[#0A192F]/5 text-[#0A192F] hover:bg-[#0A192F]/10 transition-colors"
+                          className="p-2 rounded-md bg-[#0A192F]/5 text-[#0A192F] hover:bg-[#0A192F]/10 transition-colors shrink-0"
                           title="Xem chi tiết"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {/* 🚀 NÚT HỦY & HOÀN TIỀN (CHỈ HIỆN KHI ĐÃ THANH TOÁN) */}
-                        {b.status === "paid" && (
-                          <button
-                            onClick={() => setBookingToRefund(b)}
-                            className="p-2 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"
-                            title="Hủy đơn & Yêu cầu hoàn tiền"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        )}
+                        {/* Wrapper giữ chỗ cho nút Hoàn Tiền (tránh xô lệch khi mất) */}
+                        <div className="w-[36px] flex justify-center shrink-0">
+                          {b.status === "paid" && (
+                            <button
+                              onClick={() => setBookingToRefund(b)}
+                              className="p-2 rounded-md bg-red-50 text-red-600 hover:bg-red-100 transition-colors border border-transparent hover:border-red-200"
+                              title="Hủy đơn & Yêu cầu hoàn tiền"
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
 
-                        <div className="relative">
+                        {/* Select trạng thái: Fix cứng width 140px */}
+                        <div className="relative w-[140px] shrink-0">
                           <select
                             value={b.status}
                             disabled={updatingId === b.id}
@@ -395,7 +397,7 @@ export function BookingsTab({
                                 e.target.value as BookingStatus,
                               )
                             }
-                            className="appearance-none pl-3 pr-8 py-1.5 text-xs font-semibold border rounded-md cursor-pointer disabled:opacity-50 shadow-sm focus:ring-1 focus:ring-[#D4AF37]"
+                            className="w-full appearance-none pl-3 pr-8 py-1.5 text-xs font-semibold border border-slate-200 rounded-md cursor-pointer disabled:opacity-50 shadow-sm focus:ring-1 focus:ring-[#D4AF37] outline-none bg-white"
                           >
                             <option value="holding">Giữ chỗ</option>
                             <option value="paid">Đã thanh toán</option>
@@ -404,9 +406,13 @@ export function BookingsTab({
                           </select>
                           <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
-                        {updatingId === b.id && (
-                          <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
-                        )}
+
+                        {/* Wrapper giữ chỗ cho Spinner */}
+                        <div className="w-4 flex justify-center shrink-0">
+                          {updatingId === b.id && (
+                            <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin"></div>
+                          )}
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -424,7 +430,6 @@ export function BookingsTab({
         />
       </div>
 
-      {/* 🚀 GỌI MODAL TẠI ĐÂY */}
       {bookingToRefund && (
         <AdminCancelRefundModal
           booking={bookingToRefund}

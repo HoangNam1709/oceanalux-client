@@ -12,14 +12,14 @@ import {
   Clock,
   Activity,
   BarChart3,
+  Map, 
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { ScheduleHealthTab } from "../AdminPages/ScheduleHealthTab";
-import { RevenueTab } from "../AdminPages/RevenueTab";
-// ─── IMPORT TỪ FILE CHUNG (Đảm bảo đường dẫn đúng với cấu trúc thư mục của bạn) ───
+
+// ─── IMPORT TỪ FILE CHUNG ───
 import {
   AdminTab,
   Booking,
@@ -33,18 +33,23 @@ import {
   getStatusBadge,
 } from "./adminShared";
 
-// ─── IMPORT CÁC TABS ĐÃ TÁCH ───
+// ─── IMPORT CÁC TABS ───
+import { ScheduleHealthTab } from "../AdminPages/ScheduleHealthTab";
+import { RevenueTab } from "../AdminPages/RevenueTab";
 import { OverviewTab } from "../AdminPages/OverviewTab";
 import { BookingsTab } from "../AdminPages/BookingsTab";
 import { CruisesTab } from "../AdminPages/CruisesTab";
 import { CabinsTab } from "../AdminPages/CabinsTab";
 import { AccountsTab } from "../AdminPages/AccountsTab";
 
-import { CruiseModal, CabinModal, AccountModal, DeleteConfirm } from "./Modals"; 
+// ─── IMPORT MODALS ───
+import { CruiseModal, CabinModal, AccountModal, DeleteConfirm } from "./Modals";
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [activeTab, setActiveTab] = useState<AdminTab | "itineraries">(
+    "overview",
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // ─── DATA STATES ───
@@ -59,97 +64,79 @@ export function AdminDashboardPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [schedulesHealth, setSchedulesHealth] = useState<any[]>([]);
 
-  // Mẫu dữ liệu ảo cho Biểu đồ
-  const monthlyRevenue = [
-    { month: "T1", value: 45 },
-    { month: "T2", value: 52 },
-    { month: "T3", value: 38 },
-    { month: "T4", value: 65 },
-    { month: "T5", value: 85 },
-    { month: "T6", value: 70 },
-    { month: "T7", value: 90 },
-    { month: "T8", value: 110 },
-    { month: "T9", value: 85 },
-    { month: "T10", value: 75 },
-    { month: "T11", value: 95 },
-    { month: "T12", value: 120 },
-  ];
-
   // ─── MODAL & CRUD STATES ───
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [updatingId, setUpdatingId] = useState<number | string | null>(null);
+
   const [cruiseModal, setCruiseModal] = useState<"create" | Cruise | null>(
     null,
   );
   const [deleteCruise, setDeleteCruise] = useState<Cruise | null>(null);
   const [selectedCruiseId, setSelectedCruiseId] = useState<string>("");
+
   const [cabinModal, setCabinModal] = useState<"create" | Cabin | null>(null);
   const [deleteCabin, setDeleteCabin] = useState<Cabin | null>(null);
+
   const [accountModal, setAccountModal] = useState<"create" | Account | null>(
     null,
   );
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
 
-  // Logic lấy Tàu hiện tại đang xem phòng
+  // Logic lấy Tàu hiện tại đang xem phòng / lịch trình
   const currentCruise =
     cruises.find((c) => c.id === selectedCruiseId) ?? cruises[0];
 
-  // ─── GỌI API KHỞI TẠO DỮ LIỆU ───
-  useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        setIsLoading(true);
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        };
+  // ─── GỌI API KHỞI TẠO DỮ LIỆU (Dùng chung) ───
+  const fetchAdminData = async (showLoading = true) => {
+    try {
+      if (showLoading) setIsLoading(true);
+      const token = localStorage.getItem("token");
+      const headers = {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-        const [statsRes, bookingsRes, cruisesRes, accountsRes, healthRes] =
-          await Promise.all([
-            fetch("http://localhost:8081/api/admin/dashboard/stats", {
-              headers,
-            }),
-            fetch("http://localhost:8081/api/admin/bookings", { headers }),
-            fetch("http://localhost:8081/api/admin/cruises", { headers }),
-            fetch("http://localhost:8081/api/admin/accounts", { headers }),
-            fetch(
-              "http://localhost:8081/api/admin/dashboard/schedules-health",
-              { headers },
-            ),
-          ]);
+      const [statsRes, bookingsRes, cruisesRes, accountsRes, healthRes] =
+        await Promise.all([
+          fetch("http://localhost:8081/api/admin/dashboard/stats", { headers }),
+          fetch("http://localhost:8081/api/admin/bookings", { headers }),
+          fetch("http://localhost:8081/api/admin/cruises", { headers }),
+          fetch("http://localhost:8081/api/admin/accounts", { headers }),
+          fetch("http://localhost:8081/api/admin/dashboard/schedules-health", {
+            headers,
+          }),
+        ]);
 
-        // ĐỌC DỮ LIỆU JSON
-        const statsData = await statsRes.json();
-        const bookingsData = await bookingsRes.json();
-        const cruisesData = await cruisesRes.json();
-        const accountsData = await accountsRes.json();
-        const healthData = await healthRes.json(); // <-- Lúc này healthRes đã có dữ liệu để .json()
+      const statsData = await statsRes.json();
+      const bookingsData = await bookingsRes.json();
+      const cruisesData = await cruisesRes.json();
+      const accountsData = await accountsRes.json();
+      const healthData = await healthRes.json();
 
-        // SET VÀO STATE
-        if (statsData.status === "success") setStats(statsData.data);
-        if (bookingsData.status === "success") setBookings(bookingsData.data);
-        if (cruisesData.status === "success") {
-          setCruises(cruisesData.data);
-          if (cruisesData.data.length > 0)
-            setSelectedCruiseId(cruisesData.data[0].id);
+      if (statsData.status === "success") setStats(statsData.data);
+      if (bookingsData.status === "success") setBookings(bookingsData.data);
+      if (cruisesData.status === "success") {
+        setCruises(cruisesData.data);
+        if (cruisesData.data.length > 0 && !selectedCruiseId) {
+          setSelectedCruiseId(cruisesData.data[0].id);
         }
-        if (accountsData.status === "success") setAccounts(accountsData.data);
-        if (healthData.status === "success")
-          setSchedulesHealth(healthData.data);
-      } catch (error) {
-        console.error("Lỗi khi tải dữ liệu:", error);
-        toast.error("Lỗi kết nối Server!");
-      } finally {
-        setIsLoading(false);
       }
-    };
-    fetchAdminData();
+      if (accountsData.status === "success") setAccounts(accountsData.data);
+      if (healthData.status === "success") setSchedulesHealth(healthData.data);
+    } catch (error) {
+      console.error("Lỗi khi tải dữ liệu:", error);
+      toast.error("Lỗi kết nối Server!");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminData(true);
   }, []);
 
-  // ─── HÀM XỬ LÝ (API CALLS THÊM, SỬA, XÓA) ───
-  // 1. Booking Status
+  // ─── CÁC HÀM CRUD (CRUISE, CABIN, ACCOUNT) BỊ ẨN ĐỂ RÚT GỌN... (Giữ nguyên của bạn) ───
   const handleUpdateStatus = async (
     bookingId: string,
     newStatus: BookingStatus,
@@ -167,7 +154,7 @@ export function AdminDashboardPage() {
           String(b.id) === String(bookingId) ? { ...b, status: newStatus } : b,
         ),
       );
-      toast.success("Cập nhật thành công");
+      toast.success("Cập nhật trạng thái thành công");
     } catch (error) {
       toast.error("Lỗi cập nhật!");
     } finally {
@@ -175,7 +162,6 @@ export function AdminDashboardPage() {
     }
   };
 
-  // 2. Tàu (Cruise)
   const handleSaveCruise = async (data: any) => {
     try {
       const token = localStorage.getItem("token");
@@ -212,7 +198,6 @@ export function AdminDashboardPage() {
 
   const handleDeleteCruise = async () => {
     if (!deleteCruise) return;
-
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/cruises/${deleteCruise.id}`,
@@ -221,34 +206,22 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-
-      // Lấy dữ liệu từ Backend
       const data = await res.json();
-
-      // BẮT LỖI 400 (RÀNG BUỘC DỮ LIỆU)
       if (res.status === 400) {
-        // Dùng cú pháp cơ bản nhất để đảm bảo thư viện Toast nào cũng chạy được
         toast.error(data.message);
-        setDeleteCruise(null); // Đóng modal
-        return; // Dừng hàm tại đây
+        setDeleteCruise(null);
+        return;
       }
-
-      // XÓA THÀNH CÔNG
       if (res.ok && data.status === "success") {
         setCruises((prev) => prev.filter((c) => c.id !== deleteCruise.id));
         setDeleteCruise(null);
         toast.success("Xóa Du thuyền thành công!");
-      } else {
-        // Lỗi logic khác từ Server
-        toast.error(data.message || "Lỗi khi xóa du thuyền!");
-      }
+      } else toast.error(data.message || "Lỗi khi xóa du thuyền!");
     } catch (error) {
-      console.error("Lỗi catch:", error);
       toast.error("Không thể kết nối đến Server!");
     }
   };
 
-  // 3. Phòng (Cabin)
   const handleSaveCabin = async (data: any) => {
     try {
       const isEdit = !!data.id;
@@ -271,7 +244,7 @@ export function AdminDashboardPage() {
           prev.map((cruise) => {
             if (cruise.id !== selectedCruiseId) return cruise;
             const updatedCabins = isEdit
-              ? cruise.cabins.map((c) =>
+              ? cruise.cabins.map((c: any) =>
                   c.id === data.id ? { ...c, ...result.data } : c,
                 )
               : [...cruise.cabins, result.data];
@@ -280,7 +253,7 @@ export function AdminDashboardPage() {
               cabins: updatedCabins,
               basePrice:
                 updatedCabins.length > 0
-                  ? Math.min(...updatedCabins.map((c) => c.pricePerNight))
+                  ? Math.min(...updatedCabins.map((c: any) => c.pricePerNight))
                   : 0,
             };
           }),
@@ -295,7 +268,6 @@ export function AdminDashboardPage() {
 
   const handleDeleteCabin = async () => {
     if (!deleteCabin) return;
-
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/cabins/${deleteCabin.id}`,
@@ -304,55 +276,37 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-
-      // 1. Gỡ dữ liệu từ Backend ra trước
       const data = await res.json();
-
       if (res.status === 400) {
-        toast.error(data.message); // Hiển thị nguyên văn lời từ chối của Backend
-        setDeleteCabin(null); // Tắt modal xác nhận
-        return; // Dừng hàm lại
+        toast.error(data.message);
+        setDeleteCabin(null);
+        return;
       }
-
-      //  3. XÓA THÀNH CÔNG
       if (res.ok && data.status === "success") {
         setCruises((prev) =>
           prev.map((cruise) => {
             if (cruise.id !== selectedCruiseId) return cruise;
-
-            // Cập nhật lại danh sách phòng
             const updatedCabins = cruise.cabins.filter(
-              (c) => c.id !== deleteCabin.id,
+              (c: any) => c.id !== deleteCabin.id,
             );
-
-            // Cập nhật lại giá Min của tàu
             return {
               ...cruise,
               cabins: updatedCabins,
               basePrice:
                 updatedCabins.length > 0
-                  ? Math.min(...updatedCabins.map((c) => c.pricePerNight))
+                  ? Math.min(...updatedCabins.map((c: any) => c.pricePerNight))
                   : 0,
             };
           }),
         );
-
         setDeleteCabin(null);
         toast.success("Đã xóa hạng phòng thành công!");
-      } else {
-        // Lỗi logic khác từ Server
-        toast.error(data.message || "Lỗi khi xóa hạng phòng!");
-      }
+      } else toast.error(data.message || "Lỗi khi xóa hạng phòng!");
     } catch (error) {
-      console.error(error);
-      // Xử lý chuẩn TypeScript/ES6 để không bị lỗi error.message
-      const errorMessage =
-        error instanceof Error ? error.message : "Lỗi Server!";
-      toast.error(errorMessage);
+      toast.error("Lỗi Server!");
     }
   };
 
-  // 4. Tài khoản (Account)
   const handleSaveAccount = async (data: any) => {
     try {
       const isEdit = !!data.id;
@@ -386,7 +340,6 @@ export function AdminDashboardPage() {
 
   const handleDeleteAccount = async () => {
     if (!deleteAccount) return;
-
     try {
       const res = await fetch(
         `http://localhost:8081/api/admin/accounts/${deleteAccount.id}`,
@@ -395,37 +348,28 @@ export function AdminDashboardPage() {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         },
       );
-
-      // 1. Gỡ dữ liệu JSON từ Backend
       const data = await res.json();
-
-      // 2. BẮT KHIÊN BẢO VỆ (Lỗi 400 - Tài khoản đã có lịch sử đặt phòng)
       if (res.status === 400) {
         toast.error(data.message);
-        setDeleteAccount(null); // Đóng modal xác nhận để Admin đỡ phải tự bấm tắt
-        return; // Dừng hàm, không chạy lệnh xóa State bên dưới
+        setDeleteAccount(null);
+        return;
       }
-
-      //  3. XÓA THÀNH CÔNG
       if (res.ok && data.status === "success") {
         setAccounts((prev) => prev.filter((a) => a.id !== deleteAccount.id));
         setDeleteAccount(null);
         toast.success("Đã xóa tài khoản thành công!");
-      } else {
-        // Xử lý nếu Server trả về lỗi khác (VD: 500, 404)
-        toast.error(data.message || "Lỗi khi xóa tài khoản!");
-      }
+      } else toast.error(data.message || "Lỗi khi xóa tài khoản!");
     } catch (error) {
-      console.error(error);
-      // Xử lý an toàn cho TypeScript
-      const errorMessage =
-        error instanceof Error ? error.message : "Lỗi Server!";
-      toast.error(errorMessage);
+      toast.error("Lỗi Server!");
     }
   };
 
   // ─── TABS NAVIGATION ───
-  const tabs: { id: AdminTab; label: string; icon: React.ElementType }[] = [
+  const tabs: {
+    id: AdminTab | "itineraries";
+    label: string;
+    icon: React.ElementType;
+  }[] = [
     { id: "overview", label: "Tổng quan", icon: LayoutGrid },
     { id: "bookings", label: "Đặt chỗ", icon: Calendar },
     { id: "schedules-health", label: "Tình trạng", icon: Activity },
@@ -483,7 +427,7 @@ export function AdminDashboardPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setActiveTab(tab.id as AdminTab | "itineraries")}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all ${
                   active
                     ? "text-[#0A192F] shadow-md bg-gradient-to-r from-[#D4AF37] to-[#e8c84a]"
@@ -502,18 +446,16 @@ export function AdminDashboardPage() {
           <OverviewTab
             cruises={cruises}
             bookings={bookings}
-            setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab as any}
             setSelectedBooking={setSelectedBooking}
           />
         )}
 
-        {/* NỘI DUNG TABS */}
         {activeTab === "schedules-health" && (
           <ScheduleHealthTab
             schedules={schedulesHealth}
             bookings={bookings}
             refreshData={() => {
-              // Hàm gọi lại API nếu Admin bấm nút thao tác
               const token = localStorage.getItem("token");
               fetch("http://localhost:8081/api/admin/bookings", {
                 headers: { Authorization: `Bearer ${token}` },
@@ -525,7 +467,9 @@ export function AdminDashboardPage() {
             }}
           />
         )}
+
         {activeTab === "revenue" && <RevenueTab cruises={cruises} />}
+
         {activeTab === "bookings" && (
           <BookingsTab
             bookings={bookings}
@@ -534,15 +478,18 @@ export function AdminDashboardPage() {
             setSelectedBooking={setSelectedBooking}
           />
         )}
+
         {activeTab === "cruises" && (
           <CruisesTab
             cruises={cruises}
             setCruiseModal={setCruiseModal}
             setSelectedCruiseId={setSelectedCruiseId}
-            setActiveTab={setActiveTab}
+            setActiveTab={setActiveTab as any}
             setDeleteCruise={setDeleteCruise}
+            fetchData={() => fetchAdminData(false)}
           />
         )}
+
         {activeTab === "cabins" && (
           <CabinsTab
             currentCruise={currentCruise}
@@ -551,8 +498,10 @@ export function AdminDashboardPage() {
             setSelectedCruiseId={setSelectedCruiseId}
             setCabinModal={setCabinModal}
             setDeleteCabin={setDeleteCabin}
+            fetchData={() => fetchAdminData(false)}
           />
         )}
+
         {activeTab === "accounts" && (
           <AccountsTab
             accounts={accounts}
@@ -561,9 +510,8 @@ export function AdminDashboardPage() {
           />
         )}
       </div>
-      {/* END CONTAINER */}
 
-      {/* CÁC MODAL */}
+      {/* CÁC MODAL HIỆN CÓ CỦA BẠN (Booking, Cruise, Cabin, Account...) */}
       <AnimatePresence>
         {selectedBooking && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">

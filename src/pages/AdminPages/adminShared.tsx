@@ -30,6 +30,7 @@ export interface Cabin {
   deck: number;
   amenities: string[];
   imageUrl: string;
+  images_objects?: { id: number; image_url: string }[];
 }
 
 export interface Cruise {
@@ -48,6 +49,8 @@ export interface Cruise {
   featured: boolean;
   schedules?: any[];
   facilityIds?: number[];
+  images_objects?: { id: number; image_url: string }[];
+  itineraries?: string[];
 }
 
 export interface Booking {
