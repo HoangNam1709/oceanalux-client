@@ -86,13 +86,13 @@ export function AccountsTab({
                   Tài khoản
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wider">
-                  Vai trò (Role)
+                  Vai trò
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wider">
                   Ngày tham gia
                 </th>
                 <th className="text-left py-4 px-6 text-xs font-bold uppercase tracking-wider">
-                  Trạng thái (SĐT)
+                  Số điện thoại
                 </th>
                 <th className="text-right py-4 px-6 text-xs font-bold uppercase tracking-wider rounded-tr-lg">
                   Hành động
@@ -148,14 +148,14 @@ export function AccountsTab({
                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => setAccountModal(acc)}
-                          className="p-2 bg-white text-[#0A192F] rounded-lg border border-slate-200 hover:border-[#D4AF37] hover:text-[#D4AF37] hover:bg-[#D4AF37]/5 transition-all"
+                          className="p-2 text-slate-400 hover:border-[#D4AF37] hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-md transition-colors ml-2"
                           title="Chỉnh sửa"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteAccount(acc)}
-                          className="p-2 bg-white text-slate-400 rounded-lg border border-slate-200 hover:border-[#0A192F] hover:text-[#0A192F] hover:bg-slate-50 transition-all"
+                          className="p-2 text-slate-400 hover:border-[#D4AF37] hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-md transition-colors ml-2"
                           title="Xóa tài khoản"
                         >
                           <Trash2 className="w-4 h-4" />

@@ -12,7 +12,8 @@ import {
   Clock,
   Activity,
   BarChart3,
-  Map, 
+  Map,
+  Sparkles, // 🚀 Thêm icon Sparkles cho Tab Ngày Lễ
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -41,15 +42,17 @@ import { BookingsTab } from "../AdminPages/BookingsTab";
 import { CruisesTab } from "../AdminPages/CruisesTab";
 import { CabinsTab } from "../AdminPages/CabinsTab";
 import { AccountsTab } from "../AdminPages/AccountsTab";
+import { HolidayTab } from "../AdminPages/HolidayTab"; // Đã import
 
 // ─── IMPORT MODALS ───
 import { CruiseModal, CabinModal, AccountModal, DeleteConfirm } from "./Modals";
 
 export function AdminDashboardPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AdminTab | "itineraries">(
-    "overview",
-  );
+  // 🚀 Cập nhật type cho activeTab để nhận thêm "holidays"
+  const [activeTab, setActiveTab] = useState<
+    AdminTab | "itineraries" | "holidays"
+  >("overview");
   const [isLoading, setIsLoading] = useState(true);
 
   // ─── DATA STATES ───
@@ -136,7 +139,7 @@ export function AdminDashboardPage() {
     fetchAdminData(true);
   }, []);
 
-  // ─── CÁC HÀM CRUD (CRUISE, CABIN, ACCOUNT) BỊ ẨN ĐỂ RÚT GỌN... (Giữ nguyên của bạn) ───
+  // ─── CÁC HÀM CRUD ───
   const handleUpdateStatus = async (
     bookingId: string,
     newStatus: BookingStatus,
@@ -366,7 +369,7 @@ export function AdminDashboardPage() {
 
   // ─── TABS NAVIGATION ───
   const tabs: {
-    id: AdminTab | "itineraries";
+    id: AdminTab | "itineraries" | "holidays";
     label: string;
     icon: React.ElementType;
   }[] = [
@@ -377,6 +380,8 @@ export function AdminDashboardPage() {
     { id: "cruises", label: "Du thuyền", icon: Ship },
     { id: "cabins", label: "Phòng & Cabin", icon: Bed },
     { id: "accounts", label: "Tài khoản", icon: Users },
+    // 🚀 THÊM TAB NGÀY LỄ VÀO ĐÂY
+    { id: "holidays", label: "Ngày Lễ", icon: Sparkles },
   ];
 
   if (isLoading) {
@@ -427,7 +432,7 @@ export function AdminDashboardPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as AdminTab | "itineraries")}
+                onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-bold transition-all ${
                   active
                     ? "text-[#0A192F] shadow-md bg-gradient-to-r from-[#D4AF37] to-[#e8c84a]"
@@ -509,6 +514,9 @@ export function AdminDashboardPage() {
             setDeleteAccount={setDeleteAccount}
           />
         )}
+
+        {/* 🚀 HIỂN THỊ NỘI DUNG TAB NGÀY LỄ */}
+        {activeTab === "holidays" && <HolidayTab />}
       </div>
 
       {/* CÁC MODAL HIỆN CÓ CỦA BẠN (Booking, Cruise, Cabin, Account...) */}

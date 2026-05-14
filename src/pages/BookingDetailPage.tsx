@@ -55,7 +55,7 @@ export function BookingDetailPage() {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        `http://localhost:8081/api/bookings/${id}/cancel`,
+        `http://localhost:8081/api/bookings/${id}/cancel-holding`,
         {},
         { headers: { Authorization: `Bearer ${token}` } },
       );

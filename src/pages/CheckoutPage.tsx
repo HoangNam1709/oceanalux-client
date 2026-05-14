@@ -25,7 +25,7 @@ import {
   Tag,
   Plus,
   Baby,
-  Sparkles, // Đã bổ sung icon Sparkles cho mã giảm giá tốt nhất
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -164,6 +164,7 @@ export function CheckoutPage() {
   // 2. Core State
   const [cruiseData, setCruiseData] = useState<any>(null);
   const [cabinData, setCabinData] = useState<any>(null);
+  const [scheduleData, setScheduleData] = useState<any>(null); // 🚀 THÊM STATE LƯU LỊCH TRÌNH
   const [bookingId, setBookingId] = useState<number | null>(
     paramBookingId ? Number(paramBookingId) : null,
   );
@@ -247,9 +248,10 @@ export function CheckoutPage() {
       });
   }, []);
 
-  // 4. Pricing Logic
+  // 4. Pricing Logic 🚀 CẬP NHẬT ĐỂ TÍNH GIÁ THEO HỆ SỐ NGÀY LỄ
   const {
     basePrice,
+    priceFactor, // 🚀 Thêm biến này để dùng cho UI
     taxes,
     addonPrices,
     totalAddons,
@@ -258,12 +260,21 @@ export function CheckoutPage() {
     grandTotal,
     isSurcharged,
   } = useMemo(() => {
-    const originalPrice = Number(cabinData?.price) || 0;
+    // 🚀 BƯỚC 1: Lấy hệ số nhân (Nếu không có thì mặc định là 1.0)
+    const factor = scheduleData?.price_factor
+      ? parseFloat(scheduleData.price_factor)
+      : 1.0;
+
+    // 🚀 BƯỚC 2: Tính giá cơ bản đã có hệ số
+    const baseCabinPrice = Number(cabinData?.price) || 0;
+    const originalPrice = baseCabinPrice * factor;
+
     const capacity = Number(cabinData?.capacity) || 2;
 
     let finalBasePrice = originalPrice;
     let surcharged = false;
 
+    // Phụ thu ở ghép
     if (guests > capacity && guests <= capacity + 2) {
       finalBasePrice = originalPrice * 1.15;
       surcharged = true;
@@ -299,6 +310,7 @@ export function CheckoutPage() {
 
     return {
       basePrice: finalBasePrice,
+      priceFactor: factor,
       taxes: taxAmount,
       addonPrices: prices,
       totalAddons: totalAddon,
@@ -307,23 +319,20 @@ export function CheckoutPage() {
       grandTotal: Math.max(0, calculatedSubTotal - couponDiscount),
       isSurcharged: surcharged,
     };
-  }, [cabinData, addons, guests, childrenCount, appliedCoupon]);
+  }, [cabinData, scheduleData, addons, guests, childrenCount, appliedCoupon]);
 
   // 4.5 TÌM MÃ GIẢM GIÁ TỐT NHẤT
   const bestCoupon = useMemo(() => {
     if (!availableCoupons || availableCoupons.length === 0) return null;
 
     let maxDiscount = 0;
-    let best: any = null; // <--- FIX Ở ĐÂY: Thêm `: any` để TypeScript không báo lỗi "never" nữa
+    let best: any = null;
 
     availableCoupons.forEach((c) => {
       const minOrder = Number(c.min_order_value);
 
-      // Chỉ xét các mã đủ điều kiện áp dụng
       if (subTotal >= minOrder) {
         let currentDiscount = 0;
-
-        // Tính toán quy ra tiền mặt để so sánh
         if (Number(c.discount_amount) > 0) {
           currentDiscount = Number(c.discount_amount);
         } else if (Number(c.discount_percent) > 0) {
@@ -356,6 +365,7 @@ export function CheckoutPage() {
           ) {
             setCruiseData(oldBooking.schedule.cruise);
             setCabinData(oldBooking.details[0].cabin_class);
+            setScheduleData(oldBooking.schedule); // 🚀 LƯU SCHEDULE VÀO STATE
             setBookingId(oldBooking.id);
             const backup = Math.floor(Number(oldBooking.remaining_seconds));
             if (backup > 0) setTimeLeft(backup);
@@ -382,6 +392,11 @@ export function CheckoutPage() {
         setCabinData(
           res.data.data.cabin_classes.find((c: any) => c.id == cabinId),
         );
+        // 🚀 TÌM VÀ LƯU LỊCH TRÌNH ĐANG CHỌN ĐỂ LẤY HỆ SỐ GIÁ
+        setScheduleData(
+          res.data.data.schedules?.find((s: any) => s.id == scheduleId),
+        );
+
         return axios.post(
           "http://localhost:8081/api/bookings/hold",
           {
@@ -542,11 +557,13 @@ export function CheckoutPage() {
   const cruiseImage = cruiseData?.images?.[0]?.image_url || "/images/tau-1.jpg";
 
   const { checkInDate, checkOutDate } = useMemo(() => {
-    const checkIn = startDateParam ? new Date(startDateParam) : new Date();
+    // Ưu tiên lấy ngày từ schedule nếu load từ API booking cũ
+    const rawStart = scheduleData?.departure_date || startDateParam;
+    const checkIn = rawStart ? new Date(rawStart) : new Date();
     const checkOut = new Date(checkIn);
     checkOut.setDate(checkOut.getDate() + durationNights);
     return { checkInDate: checkIn, checkOutDate: checkOut };
-  }, [startDateParam, durationNights]);
+  }, [startDateParam, scheduleData, durationNights]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("vi-VN", {
@@ -716,9 +733,32 @@ export function CheckoutPage() {
               {fmtVNDShort(basePrice)}
             </span>
           </div>
+
+          {/* 🚀 HIỂN THỊ BADGE GIÁ ĐỘNG (LỄ TẾT / KHUYẾN MÃI) */}
+          {priceFactor !== 1.0 && (
+            <div className="flex justify-between items-baseline">
+              <span
+                className="text-xs"
+                style={{ color: "rgba(255,255,255,0.5)" }}
+              ></span>
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 mt-0.5"
+                style={{
+                  backgroundColor: priceFactor > 1 ? "#7f1d1d" : "#064e3b",
+                  color: priceFactor > 1 ? "#fca5a5" : "#6ee7b7",
+                }}
+              >
+                <Sparkles className="w-3 h-3" />
+                {priceFactor > 1
+                  ? `Giá cao điểm (x${priceFactor})`
+                  : `Giá ưu đãi (x${priceFactor})`}
+              </span>
+            </div>
+          )}
+
           {isSurcharged && (
             <p
-              className="text-[11px] italic text-right"
+              className="text-[11px] italic text-right mt-1"
               style={{ color: GOLD }}
             >
               *Đã bao gồm 15% phụ thu ở ghép
@@ -736,7 +776,7 @@ export function CheckoutPage() {
             </div>
           )}
 
-          <div className="flex justify-between items-baseline">
+          <div className="flex justify-between items-baseline mt-2">
             <span
               className="text-sm flex items-center gap-1"
               style={{ color: "#94a3b8" }}
@@ -750,7 +790,7 @@ export function CheckoutPage() {
 
           {totalAddons > 0 && (
             <div
-              className="pt-3 border-t space-y-2"
+              className="pt-3 border-t space-y-2 mt-3"
               style={{ borderColor: "rgba(255,255,255,0.1)" }}
             >
               <p
@@ -788,7 +828,7 @@ export function CheckoutPage() {
         </div>
 
         <div
-          className="pt-4 border-t"
+          className="pt-4 border-t mt-2"
           style={{ borderColor: "rgba(255,255,255,0.1)" }}
         >
           {appliedCoupon && (
@@ -1222,7 +1262,6 @@ export function CheckoutPage() {
 
           <div className="p-6 relative">
             {appliedCoupon ? (
-              // Hộp hiển thị mã ĐÃ ÁP DỤNG (Theme Vàng)
               <div
                 className="flex justify-between items-center bg-amber-50/50 border-2 px-5 py-4 rounded-xl shadow-sm"
                 style={{ borderColor: GOLD }}
@@ -1255,7 +1294,6 @@ export function CheckoutPage() {
                 </button>
               </div>
             ) : (
-              // Ô INPUT
               <div className="flex gap-3 relative">
                 <div className="relative flex-1 group">
                   <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#D4AF37] transition-colors" />
@@ -1376,7 +1414,6 @@ export function CheckoutPage() {
                             }
                           }}
                           disabled={!isEligible}
-                          // Tái sử dụng Theme hover viền Vàng
                           className={`w-full text-left rounded-xl flex items-stretch border-2 transition-all overflow-hidden ${
                             isEligible
                               ? "border-slate-100 bg-white hover:border-[#D4AF37] hover:bg-amber-50/40 cursor-pointer"

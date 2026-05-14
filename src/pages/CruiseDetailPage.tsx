@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-// Đã thêm ChevronLeft, ChevronRight vào danh sách import
 import {
   Star,
   MapPin,
@@ -16,12 +15,15 @@ import {
   Users,
   Minus,
   Plus,
+  Sparkles,
+  X,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { CabinCard } from "./CabinCard";
 import { echo } from "../echo";
 import { toast } from "react-hot-toast";
+
 // ==========================================
 // COMPONENT: TỜ LỊCH
 // ==========================================
@@ -88,7 +90,6 @@ const ScheduleCalendar = ({
 
   return (
     <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-lg mb-6">
-      {/* HEADER LỊCH */}
       <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-50">
         <button
           onClick={prevMonth}
@@ -107,14 +108,12 @@ const ScheduleCalendar = ({
         </button>
       </div>
 
-      {/* THỨ TRONG TUẦN */}
       <div className="grid grid-cols-7 gap-1 text-center text-[11px] uppercase tracking-wider font-bold text-slate-400 mb-3">
         {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
 
-      {/* CÁC NGÀY TRONG THÁNG */}
       <div className="grid grid-cols-7 gap-y-2">
         {blanks.map((b) => (
           <div key={`blank-${b}`} className="h-10"></div>
@@ -138,35 +137,29 @@ const ScheduleCalendar = ({
               isInSelectedRange = true;
           }
 
-          // XÂY DỰNG STYLE CHUẨN LUXURY THEME
           let buttonClasses =
             "h-10 w-full text-sm font-medium transition-all flex items-center justify-center relative ";
           let isDisabled = !isDeparture;
 
           if (isSelectedStart) {
-            // Ngày đi: Nền Navy, chữ Vàng (Khớp với nút bấm của bạn)
             buttonClasses +=
               "bg-[#0A192F] text-amber-400 shadow-md z-10 " +
               (durationDays > 1 ? "rounded-l-xl" : "rounded-xl");
           } else if (isSelectedEnd) {
-            // Ngày về: Nền Navy, chữ Vàng
             buttonClasses +=
               "bg-[#0A192F] text-amber-400 shadow-md z-10 " +
               (durationDays > 1 ? "rounded-r-xl" : "rounded-xl");
             if (isDeparture)
               buttonClasses += "cursor-pointer hover:bg-slate-800 ";
           } else if (isInSelectedRange) {
-            // Ở giữa chuyến: Nền xám nhạt xanh
             buttonClasses += "bg-slate-100 text-[#0A192F] font-semibold ";
             if (isDeparture)
               buttonClasses +=
                 "cursor-pointer hover:bg-slate-200 border-y border-slate-200 ";
           } else if (isDeparture) {
-            // Có tàu nhưng chưa chọn: Viền xám, hover lên viền vàng
             buttonClasses +=
               "bg-white text-slate-700 border border-slate-200 hover:border-amber-500 hover:text-amber-600 hover:shadow-sm cursor-pointer rounded-xl ";
           } else {
-            // Không có tàu: Xám, mờ
             buttonClasses +=
               "bg-transparent text-slate-300 opacity-40 cursor-not-allowed rounded-xl ";
           }
@@ -201,9 +194,14 @@ export function CruiseDetailPage() {
   const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [guestCount, setGuestCount] = useState(2);
 
+  // 🚀 STATE MỚI: QUẢN LÝ THƯ VIỆN ẢNH LIGHTBOX CỦA ĐÁNH GIÁ
+  const [lightbox, setLightbox] = useState<{
+    images: any[];
+    currentIndex: number;
+  } | null>(null);
+
   // 1. API: LẤY DỮ LIỆU BAN ĐẦU
   useEffect(() => {
-    // Chỉ chạy khi đã có dữ liệu cruise và có mảng images
     if (cruise?.images?.length > 0) {
       const interval = setInterval(() => {
         nextImage();
@@ -211,6 +209,7 @@ export function CruiseDetailPage() {
       return () => clearInterval(interval);
     }
   }, [cruise?.images, activeImageIndex]);
+
   useEffect(() => {
     axios
       .get(`http://localhost:8081/api/cruises/${id}`)
@@ -220,12 +219,11 @@ export function CruiseDetailPage() {
       .catch((error) => {
         console.error("Lỗi lấy chi tiết tàu:", error);
       })
-      .finally(() => setLoading(false)); // Tối ưu: Gộp tắt loading vào finally
+      .finally(() => setLoading(false));
   }, [id]);
 
   // 2. SOCKET: LOGIC REAL-TIME
   useEffect(() => {
-    // Nếu chưa có ID tàu hoặc chưa kết nối Echo thì bỏ qua
     if (!cruise?.id || !echo) return;
 
     const channel = echo.channel("rooms").listen(".RoomReleased", (e: any) => {
@@ -252,36 +250,34 @@ export function CruiseDetailPage() {
     return () => {
       echo.leave("rooms");
     };
-  }, [cruise?.id, selectedScheduleId]); //
-  useEffect(() => {
-    if (!selectedScheduleId) return; // Nếu chưa chọn ngày thì thôi
+  }, [cruise?.id, selectedScheduleId]);
 
-    // Gọi API để lấy số lượng phòng chuẩn xác cho ngày vừa chọn
+  useEffect(() => {
+    if (!selectedScheduleId) return;
+
     axios
       .get(
         `http://localhost:8081/api/schedules/${selectedScheduleId}/available-cabins`,
       )
       .then((response) => {
-        // Cập nhật lại mảng cabin_classes trong state cruise
         setCruise((prev: any) => ({
           ...prev,
           cabin_classes: response.data.data,
         }));
       })
       .catch((error) => console.error("Lỗi cập nhật phòng:", error));
-  }, [selectedScheduleId]); // <-- Chạy lại hàm này mỗi khi biến này thay đổi
+  }, [selectedScheduleId]);
+
   // 3. XỬ LÝ ĐẶT PHÒNG
   const handleBooking = (cabinId: number) => {
-    // TÌM XEM KHÁCH ĐANG BẤM VÀO PHÒNG NÀO ĐỂ LẤY SỨC CHỨA
     const cabin = cruise.cabin_classes.find((c: any) => c.id === cabinId);
     const capacity = cabin?.capacity || 2;
 
-    // KIỂM TRA ĐIỀU KIỆN SỐ NGƯỜI
     if (guestCount > capacity + 2) {
       toast.error(
         `Rất tiếc! Phòng này chứa tiêu chuẩn ${capacity} khách. Tối đa chỉ cho phép ở ghép thêm 2 người (Tổng: ${capacity + 2}). Quý khách vui lòng đặt Hạng phòng lớn hơn hoặc chia làm nhiều phòng nhé!`,
       );
-      return; // Chặn đứng tại đây, không cho đi tiếp
+      return;
     }
 
     if (!selectedScheduleId) {
@@ -293,15 +289,11 @@ export function CruiseDetailPage() {
     const selectedSchedule = cruise.schedules?.find(
       (s: any) => s.id === selectedScheduleId,
     );
-    // Cắt lấy phần ngày YYYY-MM-DD từ chuỗi datetime của backend (nếu có)
     const startDateRaw =
       selectedSchedule?.departure_time || selectedSchedule?.departure_date;
     const startDate = startDateRaw ? startDateRaw.split(" ")[0] : "";
-    // ==========================================
 
     const token = localStorage.getItem("token");
-
-    // Nối thêm số lượng khách VÀ ngày khởi hành vào URL
     const checkoutUrl = `/checkout?cruiseId=${id}&cabinId=${cabinId}&scheduleId=${selectedScheduleId}&guests=${guestCount}&startDate=${startDate}`;
 
     if (!token) {
@@ -325,6 +317,7 @@ export function CruiseDetailPage() {
         Không tìm thấy du thuyền.
       </div>
     );
+
   const nextImage = () => {
     if (!cruise?.images) return;
     setActiveImageIndex((prev) =>
@@ -338,10 +331,19 @@ export function CruiseDetailPage() {
       prev === 0 ? cruise.images.length - 1 : prev - 1,
     );
   };
-  const basePrice =
+
+  const selectedSchedule = cruise.schedules?.find(
+    (s: any) => s.id === selectedScheduleId,
+  );
+  const currentPriceFactor = selectedSchedule?.price_factor
+    ? parseFloat(selectedSchedule.price_factor)
+    : 1.0;
+
+  const rawBasePrice =
     cruise.cabin_classes?.length > 0
       ? Math.min(...cruise.cabin_classes.map((c: any) => c.price || 0))
       : 0;
+  const displayBasePrice = rawBasePrice * currentPriceFactor;
 
   return (
     <div className="bg-slate-50 min-h-screen relative">
@@ -436,7 +438,6 @@ export function CruiseDetailPage() {
                           alt="Cruise Gallery"
                         />
 
-                        {/* Nút sang trái */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -447,7 +448,6 @@ export function CruiseDetailPage() {
                           <ChevronLeft className="w-6 h-6" />
                         </button>
 
-                        {/* Nút sang phải */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -458,7 +458,6 @@ export function CruiseDetailPage() {
                           <ChevronRight className="w-6 h-6" />
                         </button>
 
-                        {/* Chỉ số ảnh (Ví dụ: 1/10) - Tùy chọn thêm cho đẹp */}
                         <div className="absolute bottom-4 right-6 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs">
                           {activeImageIndex + 1} / {cruise.images.length}
                         </div>
@@ -525,8 +524,6 @@ export function CruiseDetailPage() {
                   <h3 className="text-2xl font-serif font-bold text-slate-900">
                     Chọn không gian nghỉ dưỡng
                   </h3>
-
-                  {/* Lời nhắc nhẹ nhàng (Tuỳ chọn) */}
                   {!selectedScheduleId && (
                     <div className="px-4 py-2 bg-amber-50 text-amber-700 text-sm font-medium rounded-lg border border-amber-200 flex items-center gap-3">
                       <Info className="w-4 h-4" />
@@ -537,15 +534,17 @@ export function CruiseDetailPage() {
                   )}
                 </div>
 
-                {/* LUÔN HIỂN THỊ DANH SÁCH PHÒNG */}
                 <div className="grid gap-8">
                   {cruise.cabin_classes?.map((cabin: any) => {
-                    // TRICK: Nếu chưa chọn ngày, lấy total_rooms làm số lượng hiển thị
                     const displayCabin = {
                       ...cabin,
                       available_rooms: selectedScheduleId
                         ? cabin.available_rooms
-                        : cabin.total_rooms || 0, // Tránh undefined nếu API chưa có total_rooms
+                        : cabin.total_rooms || 0,
+                      price: (cabin.price || 0) * currentPriceFactor,
+                      pricePerNight:
+                        (cabin.price || cabin.pricePerNight || 0) *
+                        currentPriceFactor,
                     };
 
                     return (
@@ -608,38 +607,75 @@ export function CruiseDetailPage() {
                 animate={{ opacity: 1 }}
                 className="grid gap-6"
               >
-                {cruise.reviews?.map((review: any) => (
-                  <div
-                    key={review.id}
-                    className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold">
-                          {review.user?.name?.charAt(0)}
+                {cruise.reviews?.length > 0 ? (
+                  cruise.reviews.map((review: any) => (
+                    <div
+                      key={review.id}
+                      className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold">
+                            {review.user?.name?.charAt(0) || "U"}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-900">
+                              {review.user?.name || "Khách hàng"}
+                            </div>
+                            <div className="text-xs text-slate-400">
+                              {new Date(review.created_at).toLocaleDateString(
+                                "vi-VN",
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-slate-900">
-                            {review.user?.name}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            {new Date(review.created_at).toLocaleDateString()}
-                          </div>
+                        <div className="flex text-amber-500 gap-0.5">
+                          {[...Array(review.rating || 5)].map((_, i) => (
+                            <Star key={i} size={14} fill="currentColor" />
+                          ))}
                         </div>
                       </div>
-                      <div className="flex text-amber-500 gap-0.5">
-                        {[...Array(review.rating)].map((_, i) => (
-                          <Star key={i} size={14} fill="currentColor" />
-                        ))}
-                      </div>
+
+                      <p className="text-slate-600 italic">
+                        "{review.comment}"
+                      </p>
+
+                      {review.images && review.images.length > 0 && (
+                        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-slate-50">
+                          {review.images.map((img: any, idx: number) => (
+                            <div
+                              key={img.id || idx}
+                              // 🚀 THAY ĐỔI: TRUYỀN VÀO CẢ MẢNG ẢNH VÀ VỊ TRÍ INDEX CỦA ẢNH ĐƯỢC CLICK
+                              onClick={() =>
+                                setLightbox({
+                                  images: review.images,
+                                  currentIndex: idx,
+                                })
+                              }
+                              className="w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border border-slate-200 cursor-zoom-in hover:shadow-md transition-all shrink-0"
+                            >
+                              <img
+                                src={`http://localhost:8081${img.image_path}`}
+                                alt={`Review by ${review.user?.name}`}
+                                className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-slate-600 italic">"{review.comment}"</p>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-500 italic bg-white rounded-2xl border border-slate-100">
+                    Chưa có đánh giá nào cho chuyến đi này.
                   </div>
-                ))}
+                )}
               </motion.div>
             )}
           </div>
         </div>
+
+        {/* RIGHT SIDEBAR (Cột đặt phòng bên phải) */}
         <div className="lg:w-1/3">
           <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-6 lg:p-8 sticky top-28 flex flex-col gap-6">
             <div>
@@ -648,12 +684,23 @@ export function CruiseDetailPage() {
               </h3>
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-amber-500">
-                  {new Intl.NumberFormat("vi-VN").format(basePrice)}đ
+                  {new Intl.NumberFormat("vi-VN").format(displayBasePrice)}đ
                 </span>
                 <span className="text-slate-500 text-sm font-medium">
                   / khách
                 </span>
               </div>
+
+              {currentPriceFactor !== 1.0 && (
+                <div
+                  className={`mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold w-fit ${currentPriceFactor > 1 ? "bg-red-50 text-red-600 border border-red-100" : "bg-emerald-50 text-emerald-600 border border-emerald-100"}`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {currentPriceFactor > 1
+                    ? `Giá cao điểm (x${currentPriceFactor})`
+                    : `Giá ưu đãi (x${currentPriceFactor})`}
+                </div>
+              )}
             </div>
 
             <div className="space-y-4 py-4 border-y border-slate-100">
@@ -690,14 +737,13 @@ export function CruiseDetailPage() {
                 durationDays={cruise.duration_days || 1}
               />
 
-              {/* MỚI THÊM: KHU VỰC CHỌN SỐ LƯỢNG KHÁCH */}
               <div className="pt-2 pb-1 border-t border-slate-100">
                 <label className="text-[#0A192F] font-bold flex items-center gap-2 mb-3">
                   <Users className="w-5 h-5 text-amber-500" /> Số lượng khách:
                 </label>
                 <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
                   <button
-                    onClick={() => setGuestCount(Math.max(1, guestCount - 1))} // Tối thiểu là 1 người
+                    onClick={() => setGuestCount(Math.max(1, guestCount - 1))}
                     className="p-3 bg-white rounded-lg shadow-sm text-slate-500 hover:text-amber-500 hover:border-amber-200 border border-transparent transition-all"
                   >
                     <Minus className="w-4 h-4" />
@@ -711,7 +757,7 @@ export function CruiseDetailPage() {
                   </span>
 
                   <button
-                    onClick={() => setGuestCount(Math.min(10, guestCount + 1))} // Tối đa giả sử là 10 người
+                    onClick={() => setGuestCount(Math.min(10, guestCount + 1))}
                     className="p-3 bg-white rounded-lg shadow-sm text-slate-500 hover:text-amber-500 hover:border-amber-200 border border-transparent transition-all"
                   >
                     <Plus className="w-4 h-4" />
@@ -725,7 +771,6 @@ export function CruiseDetailPage() {
               )}
             </div>
 
-            {/* 4. Nút Call to Action (Xử lý thông minh) */}
             <button
               onClick={() => {
                 if (!selectedScheduleId) {
@@ -735,7 +780,6 @@ export function CruiseDetailPage() {
                   return;
                 }
                 setActiveTab("cabins");
-                // Code cuộn mượt xuống khu vực phòng (Tùy chọn)
                 window.scrollTo({
                   top: document.body.scrollHeight / 2,
                   behavior: "smooth",
@@ -755,7 +799,6 @@ export function CruiseDetailPage() {
               />
             </button>
 
-            {/* 5. Trust Badges */}
             <div className="pt-2 border-t border-slate-50 flex flex-col items-center gap-2 text-[10px] text-slate-400 uppercase tracking-widest font-bold">
               <div className="flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3 text-emerald-500" /> Thanh toán
@@ -766,6 +809,90 @@ export function CruiseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* 🚀 KHUNG LIGHTBOX NÂNG CẤP (GALLERY) */}
+      <AnimatePresence>
+        {lightbox && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Lớp nền đen - Nhấn vào để thoát */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setLightbox(null)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-sm cursor-zoom-out"
+            ></motion.div>
+
+            {/* Khung chứa hình ảnh và các nút điều hướng */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative z-10 w-full max-w-5xl h-[80vh] flex items-center justify-center"
+            >
+              {lightbox.images.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightbox((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            // Lùi lại 1, nếu đang ở ảnh đầu thì quay về ảnh cuối
+                            currentIndex:
+                              prev.currentIndex === 0
+                                ? prev.images.length - 1
+                                : prev.currentIndex - 1,
+                          }
+                        : null,
+                    );
+                  }}
+                  className="absolute left-0 md:-left-16 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50 focus:outline-none"
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </button>
+              )}
+
+              {lightbox.images.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLightbox((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            // Tiến lên 1, nếu đang ở ảnh cuối thì quay về ảnh đầu
+                            currentIndex:
+                              prev.currentIndex === prev.images.length - 1
+                                ? 0
+                                : prev.currentIndex + 1,
+                          }
+                        : null,
+                    );
+                  }}
+                  className="absolute right-0 md:-right-16 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-50 focus:outline-none"
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </button>
+              )}
+
+              {/* Ảnh Đang Xem (Hiển thị cùng kích thước với object-contain) */}
+              <img
+                src={`http://localhost:8081${lightbox.images[lightbox.currentIndex].image_path}`}
+                alt="Review Fullsize"
+                className="w-full h-full object-contain select-none"
+              />
+
+              {/* Đếm số thứ tự ảnh */}
+              {lightbox.images.length > 1 && (
+                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-white/90 font-medium tracking-widest text-sm bg-black/50 px-4 py-1.5 rounded-full border border-white/10">
+                  {lightbox.currentIndex + 1} / {lightbox.images.length}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

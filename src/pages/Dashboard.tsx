@@ -328,17 +328,13 @@ export function Dashboard() {
     );
   }, [allBookings]);
 
-  // Đơn trong quá khứ (Chỉ hiển thị Đã đi xong - completed)
   const pastBookings = useMemo(() => {
     return allBookings.filter((b: any) => b.status === "completed");
   }, [allBookings]);
 
-  // LẤY TẤT CẢ ĐƠN HỦY (Có phí & Không phí) + LỌC + SẮP XẾP
-  // LẤY TẤT CẢ ĐƠN HỦY (Có phí & Không phí) + LỌC + SẮP XẾP
   const refundBookings = useMemo(() => {
     let filtered = allBookings.filter((b: any) => b.status === "cancelled");
 
-    // Lọc theo loại hủy
     if (refundFilterType === "refund") {
       filtered = filtered.filter((b: any) => b.refund_amount > 0);
     } else if (refundFilterType === "free") {
@@ -347,7 +343,6 @@ export function Dashboard() {
       );
     }
 
-    // Sắp xếp
     filtered.sort((a: any, b: any) => {
       const dateA = new Date(a.created_at).getTime();
       const dateB = new Date(b.created_at).getTime();
@@ -356,7 +351,7 @@ export function Dashboard() {
 
     return filtered;
   }, [allBookings, refundFilterType, refundSortOrder]);
-  // TÍNH TOÁN DỮ LIỆU ĐỂ HIỂN THỊ TRÊN TRANG HIỆN TẠI
+
   const totalUpcomingPages = Math.ceil(
     upcomingBookings.length / UPCOMING_PER_PAGE,
   );
@@ -377,7 +372,6 @@ export function Dashboard() {
     return refundBookings.slice(start, start + REFUNDS_PER_PAGE);
   }, [refundBookings, pageRefunds]);
 
-  // Sửa lỗi trang trống khi xóa hết phần tử ở trang cuối
   useEffect(() => {
     if (pageUpcoming > totalUpcomingPages && totalUpcomingPages > 0)
       setPageUpcoming(totalUpcomingPages);
@@ -700,64 +694,71 @@ export function Dashboard() {
                   <div className="space-y-4">
                     {paginatedPast.length > 0 ? (
                       <>
-                        {paginatedPast.map((booking: any) => (
-                          <div
-                            key={booking.id}
-                            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-center gap-6 group hover:shadow-md transition-shadow"
-                          >
-                            <img
-                              src={
-                                booking?.schedule?.cruise?.images?.[0]
-                                  ?.image_url || "/images/tau-1.jpg"
-                              }
-                              alt="Past"
-                              className="w-24 h-24 rounded-xl object-cover shrink-0"
-                            />
-                            <div className="flex-1 text-center md:text-left w-full">
-                              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                Mã đơn: {booking.booking_code}
-                              </div>
-                              <h3 className="text-lg font-bold font-serif text-slate-900 mb-1">
-                                {booking?.schedule?.cruise?.name ||
-                                  "Du thuyền 5 Sao"}
-                              </h3>
-                              <p className="text-sm text-slate-600">
-                                Trạng thái:{" "}
-                                <span className="text-green-500 font-medium">
-                                  Hoàn thành
-                                </span>
-                              </p>
-                            </div>
+                        {paginatedPast.map((booking: any) => {
+                          const hasReviewed =
+                            booking.is_reviewed ||
+                            (booking.reviews && booking.reviews.length > 0) ||
+                            booking.review;
 
-                            <div className="flex flex-col md:flex-row gap-2 shrink-0 w-full md:w-auto mt-4 md:mt-0">
-                              <button
-                                onClick={() =>
-                                  navigate(`/booking/${booking.id}`)
+                          return (
+                            <div
+                              key={booking.id}
+                              className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col md:flex-row items-center gap-6 group hover:shadow-md transition-shadow"
+                            >
+                              <img
+                                src={
+                                  booking?.schedule?.cruise?.images?.[0]
+                                    ?.image_url || "/images/tau-1.jpg"
                                 }
-                                className="text-sm font-semibold text-slate-600 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors flex items-center justify-center"
-                              >
-                                Xem Biên Lai
-                              </button>
+                                alt="Past"
+                                className="w-24 h-24 rounded-xl object-cover shrink-0"
+                              />
+                              <div className="flex-1 text-center md:text-left w-full">
+                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                  Mã đơn: {booking.booking_code}
+                                </div>
+                                <h3 className="text-lg font-bold font-serif text-slate-900 mb-1">
+                                  {booking?.schedule?.cruise?.name ||
+                                    "Du thuyền 5 Sao"}
+                                </h3>
+                                <p className="text-sm text-slate-600">
+                                  Trạng thái:{" "}
+                                  <span className="text-green-500 font-medium">
+                                    Hoàn thành
+                                  </span>
+                                </p>
+                              </div>
 
-                              {!booking.is_reviewed ? (
+                              <div className="flex flex-col md:flex-row gap-2 shrink-0 w-full md:w-auto mt-4 md:mt-0">
                                 <button
                                   onClick={() =>
-                                    setSelectedReviewBooking(booking)
+                                    navigate(`/booking/${booking.id}`)
                                   }
-                                  className="text-sm font-bold text-white bg-amber-500 px-5 py-2.5 rounded-xl shadow-sm shadow-amber-200 hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
+                                  className="text-sm font-semibold text-slate-600 bg-slate-50 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors flex items-center justify-center"
                                 >
-                                  <Star className="w-4 h-4 fill-white" /> Đánh
-                                  Giá
+                                  Xem Biên Lai
                                 </button>
-                              ) : (
-                                <span className="text-sm font-medium text-green-600 px-4 py-2 flex items-center justify-center gap-1.5 bg-green-50 rounded-xl border border-green-100">
-                                  <CheckCircle2 className="w-4 h-4" /> Đã đánh
-                                  giá
-                                </span>
-                              )}
+
+                                {!hasReviewed ? (
+                                  <button
+                                    onClick={() =>
+                                      setSelectedReviewBooking(booking)
+                                    }
+                                    className="text-sm font-bold text-white bg-amber-500 px-5 py-2.5 rounded-xl shadow-sm shadow-amber-200 hover:bg-amber-600 transition-colors flex items-center justify-center gap-1.5"
+                                  >
+                                    <Star className="w-4 h-4 fill-white" /> Đánh
+                                    Giá
+                                  </button>
+                                ) : (
+                                  <span className="text-sm font-medium text-amber-600 px-4 py-2 flex items-center justify-center gap-1.5 bg-amber-50 rounded-xl border border-amber-200">
+                                    <CheckCircle2 className="w-4 h-4" /> Đã đánh
+                                    giá
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         <PaginationControls
                           currentPage={pagePast}
                           totalPages={totalPastPages}
@@ -788,14 +789,13 @@ export function Dashboard() {
                   </h2>
 
                   <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Bộ lọc Loại hủy */}
                     <select
                       value={refundFilterType}
                       onChange={(e) => {
                         setRefundFilterType(
                           e.target.value as "all" | "free" | "refund",
                         );
-                        setPageRefunds(1); // Reset lại trang 1 khi đổi bộ lọc
+                        setPageRefunds(1);
                       }}
                       className="bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 outline-none cursor-pointer"
                     >
@@ -804,7 +804,6 @@ export function Dashboard() {
                       <option value="free">Hủy miễn phí</option>
                     </select>
 
-                    {/* Sắp xếp Ngày */}
                     <select
                       value={refundSortOrder}
                       onChange={(e) =>

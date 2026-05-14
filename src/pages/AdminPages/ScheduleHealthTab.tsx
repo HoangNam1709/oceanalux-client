@@ -4,7 +4,6 @@ import {
   Activity,
   Ship,
   Calendar,
-  AlertTriangle,
   Anchor,
   Filter,
   ChevronDown,
@@ -14,11 +13,14 @@ import {
   RefreshCcw,
   CheckCircle,
   Search,
-  Ban,
-  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatCurrency, Booking, Pagination } from "./adminShared";
+
+// 🚀 IMPORT 2 MODALS THÔNG MINH
+import { DeleteConfirm } from "./Modals/DeleteConfirm";
+import { AccessConfirm } from "./Modals/AccessConfirm";
 
 // ─── TYPES ───
 interface ScheduleMetrics {
@@ -47,7 +49,6 @@ interface ScheduleHealthData {
   cabin_details?: CabinDetail[];
 }
 
-// 🚀 TYPE CHUNG CHO CẢ 2 POPUP (HỦY & XÁC NHẬN)
 interface RefundActionTarget {
   id: string | number;
   bookingRef: string;
@@ -61,255 +62,17 @@ interface Props {
   refreshData?: () => void;
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// 🚀 COMPONENT POPUP HỦY YÊU CẦU HOÀN TIỀN (NAVY / GOLD / PEARL)
-// ══════════════════════════════════════════════════════════════════════════
-function CancelRefundModal({
-  target,
-  onConfirm,
-  onClose,
-  isProcessing,
-}: {
-  target: RefundActionTarget;
-  onConfirm: () => void;
-  onClose: () => void;
-  isProcessing: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 16 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 16 }}
-        transition={{ type: "spring", stiffness: 320, damping: 28 }}
-        className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
-        style={{ background: "#FAF7F0", border: "1px solid #E2D9C3" }}
-      >
-        <div
-          className="px-6 pt-6 pb-5 flex flex-col items-center text-center"
-          style={{ background: "#FAF7F0" }}
-        >
-          <div
-            className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-4 relative"
-            style={{ background: "#0E1E3A", border: "2px solid #C9A227" }}
-          >
-            <div
-              className="absolute inset-[4px] rounded-full"
-              style={{ border: "1px solid rgba(201,162,39,0.18)" }}
-            />
-            <Ban
-              className="w-[26px] h-[26px] relative z-10"
-              style={{ color: "#E8C96A", strokeWidth: 1.75 }}
-            />
-          </div>
-          <h3
-            className="font-serif text-xl font-semibold mb-1 tracking-wide"
-            style={{ color: "#0E1E3A" }}
-          >
-            Hủy Yêu Cầu Hoàn Tiền
-          </h3>
-          <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>
-            Bạn chắc chắn muốn hủy yêu cầu hoàn tiền cho đơn{" "}
-            <span className="font-bold font-mono" style={{ color: "#0E1E3A" }}>
-              {target.bookingRef}
-            </span>{" "}
-            của khách{" "}
-            <span className="font-semibold" style={{ color: "#0E1E3A" }}>
-              {target.guestName}
-            </span>{" "}
-            với số tiền{" "}
-            <span className="font-black" style={{ color: "#B8912A" }}>
-              {formatCurrency(target.refundAmount)}
-            </span>
-            ?
-          </p>
-          <div
-            className="mt-4 w-full flex items-start gap-2 px-4 py-3 rounded-xl text-xs text-left"
-            style={{
-              background: "rgba(201,162,39,0.08)",
-              border: "1px solid rgba(201,162,39,0.25)",
-            }}
-          >
-            <AlertTriangle
-              className="w-3.5 h-3.5 mt-0.5 shrink-0"
-              style={{ color: "#C9A227" }}
-            />
-            <span style={{ color: "#7A6020" }}>
-              Thao tác này sẽ đánh dấu yêu cầu là <strong>đã hủy</strong>. Vui
-              lòng xác nhận trước khi tiếp tục.
-            </span>
-          </div>
-        </div>
-
-        <div
-          className="mx-6"
-          style={{
-            height: "1px",
-            background:
-              "linear-gradient(to right, transparent, #E8C96A, transparent)",
-            opacity: 0.6,
-          }}
-        />
-
-        <div className="px-6 py-5 flex gap-3">
-          <button
-            disabled={isProcessing}
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold tracking-wide transition-all"
-            style={{
-              background: "#F0EAD6",
-              border: "1.5px solid #E2D9C3",
-              color: "#0E1E3A",
-            }}
-          >
-            Giữ Lại
-          </button>
-          <button
-            disabled={isProcessing}
-            onClick={onConfirm}
-            className="flex-1 flex justify-center items-center gap-2 py-3 rounded-xl text-sm font-bold tracking-wide transition-all"
-            style={{
-              background: "#0E1E3A",
-              border: "1.5px solid #C9A227",
-              color: "#E8C96A",
-            }}
-          >
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              "Xác Nhận Hủy"
-            )}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// 🚀 COMPONENT POPUP XÁC NHẬN ĐÃ CHUYỂN TIỀN (NAVY / GOLD / PEARL)
-// ══════════════════════════════════════════════════════════════════════════
-function ConfirmRefundModal({
-  target,
-  onConfirm,
-  onClose,
-  isProcessing,
-}: {
-  target: RefundActionTarget;
-  onConfirm: () => void;
-  onClose: () => void;
-  isProcessing: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 16 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 16 }}
-        transition={{ type: "spring", stiffness: 320, damping: 28 }}
-        className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
-        style={{ background: "#FAF7F0", border: "1px solid #E2D9C3" }}
-      >
-        <div
-          className="px-6 pt-6 pb-5 flex flex-col items-center text-center"
-          style={{ background: "#FAF7F0" }}
-        >
-          <div
-            className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-4 relative"
-            style={{ background: "#0E1E3A", border: "2px solid #C9A227" }}
-          >
-            <div
-              className="absolute inset-[4px] rounded-full"
-              style={{ border: "1px solid rgba(201,162,39,0.18)" }}
-            />
-            <CheckCircle
-              className="w-[28px] h-[28px] relative z-10"
-              style={{ color: "#E8C96A", strokeWidth: 1.75 }}
-            />
-          </div>
-          <h3
-            className="font-serif text-xl font-semibold mb-1 tracking-wide"
-            style={{ color: "#0E1E3A" }}
-          >
-            Xác Nhận Đã Chuyển
-          </h3>
-          <p className="text-sm leading-relaxed" style={{ color: "#4B5563" }}>
-            Xác nhận Kế toán đã chuyển khoản số tiền{" "}
-            <span className="font-black" style={{ color: "#B8912A" }}>
-              {formatCurrency(target.refundAmount)}
-            </span>{" "}
-            cho đơn{" "}
-            <span className="font-bold font-mono" style={{ color: "#0E1E3A" }}>
-              {target.bookingRef}
-            </span>{" "}
-            của khách{" "}
-            <span className="font-semibold" style={{ color: "#0E1E3A" }}>
-              {target.guestName}
-            </span>
-            ?
-          </p>
-        </div>
-
-        <div
-          className="mx-6"
-          style={{
-            height: "1px",
-            background:
-              "linear-gradient(to right, transparent, #E8C96A, transparent)",
-            opacity: 0.6,
-          }}
-        />
-
-        <div className="px-6 py-5 flex gap-3">
-          <button
-            disabled={isProcessing}
-            onClick={onClose}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold tracking-wide transition-all"
-            style={{
-              background: "#F0EAD6",
-              border: "1.5px solid #E2D9C3",
-              color: "#0E1E3A",
-            }}
-          >
-            Trở Về
-          </button>
-          <button
-            disabled={isProcessing}
-            onClick={onConfirm}
-            className="flex-1 flex justify-center items-center gap-2 py-3 rounded-xl text-sm font-bold tracking-wide transition-all"
-            style={{
-              background: "#0E1E3A",
-              border: "1.5px solid #C9A227",
-              color: "#E8C96A",
-            }}
-          >
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              "Đã Chuyển Tiền"
-            )}
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// COMPONENT CHÍNH
-// ══════════════════════════════════════════════════════════════════════════
 export function ScheduleHealthTab({
   schedules,
   bookings = [],
   refreshData,
 }: Props) {
-  // ─── STATES BỘ LỌC VÀ MODAL ───
   const [selectedCruise, setSelectedCruise] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [viewingSchedule, setViewingSchedule] =
     useState<ScheduleHealthData | null>(null);
 
-  // 🚀 STATES CHO MODAL HÀNH ĐỘNG
+  // States quản lý hành động
   const [confirmTarget, setConfirmTarget] = useState<RefundActionTarget | null>(
     null,
   );
@@ -318,7 +81,7 @@ export function ScheduleHealthTab({
   );
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // ─── STATES TÌM KIẾM & PHÂN TRANG ───
+  // States tìm kiếm & phân trang
   const [refundSearch, setRefundSearch] = useState("");
   const [schedulePage, setSchedulePage] = useState(1);
   const [refundPage, setRefundPage] = useState(1);
@@ -376,11 +139,10 @@ export function ScheduleHealthTab({
 
   // ─── XỬ LÝ DỮ LIỆU HOÀN TIỀN ───
   const pendingRefunds = (bookings as any[]).filter((b) => {
-    const status = b.status;
-    const refundStatus = b.refund_status || b.refundStatus;
-    const refundAmount = b.refund_amount || b.refundAmount || 0;
     return (
-      status === "cancelled" && refundStatus === "pending" && refundAmount > 0
+      b.status === "cancelled" &&
+      (b.refund_status || b.refundStatus) === "pending" &&
+      (b.refund_amount || b.refundAmount || 0) > 0
     );
   });
 
@@ -413,27 +175,21 @@ export function ScheduleHealthTab({
   }, [totalRefundPages, refundPage]);
 
   // ─── HÀM MỞ MODALS ───
-  const handleOpenConfirmModal = (booking: any) => {
-    setConfirmTarget({
+  const handleOpenActionModal = (
+    booking: any,
+    actionType: "confirm" | "cancel",
+  ) => {
+    const target = {
       id: booking.id,
       bookingRef: booking.bookingRef || booking.booking_code || "",
       guestName: booking.guestName || booking.customer_name || "",
-      // LOGIC: Ưu tiên lấy số tiền đã trừ phạt (refund_amount)
       refundAmount: booking.refund_amount || booking.refundAmount || 0,
-    });
+    };
+    if (actionType === "confirm") setConfirmTarget(target);
+    else setCancelTarget(target);
   };
 
-  const handleOpenCancelModal = (booking: any) => {
-    setCancelTarget({
-      id: booking.id,
-      bookingRef: booking.bookingRef || booking.booking_code || "",
-      guestName: booking.guestName || booking.customer_name || "",
-      // LOGIC: Ưu tiên lấy số tiền đã trừ phạt (refund_amount)
-      refundAmount: booking.refund_amount || booking.refundAmount || 0,
-    });
-  };
-
-  // ─── HÀM XỬ LÝ API THỰC TẾ ───
+  // ─── HÀM XỬ LÝ API ───
   const executeConfirmRefund = async () => {
     if (!confirmTarget) return;
     setIsProcessing(true);
@@ -456,9 +212,7 @@ export function ScheduleHealthTab({
       if (res.ok && data.status === "success") {
         toast.success("Xác nhận hoàn tiền thành công!");
         if (refreshData) refreshData();
-      } else {
-        toast.error(data.message || "Có lỗi xảy ra.");
-      }
+      } else toast.error(data.message || "Có lỗi xảy ra.");
     } catch {
       toast.error("Lỗi kết nối đến máy chủ!");
     } finally {
@@ -491,9 +245,7 @@ export function ScheduleHealthTab({
           `Đã hủy yêu cầu hoàn tiền cho đơn ${cancelTarget.bookingRef}`,
         );
         if (refreshData) refreshData();
-      } else {
-        toast.error(data.message || "Có lỗi xảy ra khi hủy yêu cầu.");
-      }
+      } else toast.error(data.message || "Có lỗi xảy ra khi hủy yêu cầu.");
     } catch {
       toast.error("Lỗi kết nối đến máy chủ!");
     } finally {
@@ -552,7 +304,7 @@ export function ScheduleHealthTab({
 
   return (
     <div className="space-y-8">
-      {/* ─── HEADER CHÍNH ─── */}
+      {/* ─── HEADER ─── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm gap-4 relative overflow-hidden">
         <div className="absolute -right-10 -top-10 opacity-5 pointer-events-none">
           <Activity className="w-48 h-48 text-[#0A192F]" />
@@ -819,13 +571,13 @@ export function ScheduleHealthTab({
                   >
                     <td className="py-4 px-6">
                       <div className="font-bold text-[#0A192F] text-base font-mono">
-                        {booking.bookingRef || (booking as any).booking_code}
+                        {booking.bookingRef || booking.booking_code}
                       </div>
                       <div className="font-medium text-slate-700 mt-1">
-                        {booking.guestName || (booking as any).customer_name}
+                        {booking.guestName || booking.customer_name}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {booking.guestEmail || (booking as any).customer_email}
+                        {booking.guestEmail || booking.customer_email}
                       </div>
                     </td>
                     <td className="py-4 px-6">
@@ -839,18 +591,16 @@ export function ScheduleHealthTab({
                         }}
                       >
                         {booking.cancellation_reason ||
-                          (booking as any).cancellationReason ||
+                          booking.cancellationReason ||
                           "Khách không để lại ghi chú"}
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="font-black text-[#B8912A] text-lg">
-                        {/* Hiển thị SỐ TIỀN THỰC HOÀN (Đã trừ phạt) */}
                         {formatCurrency(
                           booking.refund_amount || booking.refundAmount || 0,
                         )}
                       </div>
-                      {/* LOGIC MỚI: Hiển thị giá gốc nhỏ bên dưới để đối soát */}
                       <div className="text-[10px] text-slate-400 font-bold uppercase">
                         Gốc:{" "}
                         {formatCurrency(
@@ -866,14 +616,12 @@ export function ScheduleHealthTab({
                             cancelTarget?.id === booking.id ||
                             isProcessing
                           }
-                          onClick={() => handleOpenConfirmModal(booking)}
+                          onClick={() =>
+                            handleOpenActionModal(booking, "confirm")
+                          }
                           className="flex-1 inline-flex items-center justify-center px-3 py-2.5 bg-[#0A192F] text-[#D4AF37] font-bold rounded-xl hover:bg-[#D4AF37] hover:text-[#0A192F] transition-all disabled:opacity-50 shadow-sm text-xs whitespace-nowrap min-w-[90px]"
                         >
-                          {confirmTarget?.id === booking.id && isProcessing ? (
-                            <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            "Đã Chuyển"
-                          )}
+                          Đã Chuyển
                         </button>
                         <button
                           disabled={
@@ -881,7 +629,9 @@ export function ScheduleHealthTab({
                             cancelTarget?.id === booking.id ||
                             isProcessing
                           }
-                          onClick={() => handleOpenCancelModal(booking)}
+                          onClick={() =>
+                            handleOpenActionModal(booking, "cancel")
+                          }
                           className="flex-1 inline-flex items-center justify-center px-3 py-2.5 font-bold rounded-xl transition-all disabled:opacity-50 shadow-sm text-xs whitespace-nowrap min-w-[70px]"
                           style={{
                             background: "#FAF7F0",
@@ -897,7 +647,7 @@ export function ScheduleHealthTab({
                             e.currentTarget.style.color = "#0E1E3A";
                           }}
                         >
-                          Hủy Y/C
+                          Hủy yêu cầu
                         </button>
                       </div>
                     </td>
@@ -916,7 +666,7 @@ export function ScheduleHealthTab({
         )}
       </div>
 
-      {/* ─── MODALS CHI TIẾT VÀ POPUP XÁC NHẬN ─── */}
+      {/* ─── MODAL CHI TIẾT PHÒNG TÀU ─── */}
       <AnimatePresence>
         {viewingSchedule && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -1034,18 +784,57 @@ export function ScheduleHealthTab({
         )}
       </AnimatePresence>
 
+      {/* ─── 🚀 GỌI 2 MODALS THÔNG MINH ĐÃ ĐƯỢC IMPORT ─── */}
       <AnimatePresence>
         {cancelTarget && (
-          <CancelRefundModal
-            target={cancelTarget}
+          <DeleteConfirm
+            title="Hủy Yêu Cầu Hoàn Tiền"
+            label={
+              <>
+                Bạn chắc chắn muốn hủy yêu cầu hoàn tiền cho đơn{" "}
+                <strong className="text-[#0A192F] uppercase">
+                  {cancelTarget.bookingRef}
+                </strong>{" "}
+                của khách{" "}
+                <strong className="text-[#0A192F] capitalize">
+                  {cancelTarget.guestName}
+                </strong>{" "}
+                với số tiền{" "}
+                <strong className="text-[#B8912A]">
+                  {formatCurrency(cancelTarget.refundAmount)}
+                </strong>
+                ?
+              </>
+            }
+            warningText="Thao tác này sẽ đánh dấu yêu cầu là đã hủy. Vui lòng xác nhận trước khi tiếp tục."
+            confirmText="Xác Nhận Hủy"
             isProcessing={isProcessing}
             onConfirm={executeCancelRefund}
             onClose={() => setCancelTarget(null)}
           />
         )}
+
         {confirmTarget && (
-          <ConfirmRefundModal
-            target={confirmTarget}
+          <AccessConfirm
+            title="Xác Nhận Đã Chuyển"
+            label={
+              <>
+                Xác nhận Kế toán đã chuyển khoản số tiền{" "}
+                <strong className="text-[#B8912A]">
+                  {formatCurrency(confirmTarget.refundAmount)}
+                </strong>{" "}
+                cho đơn{" "}
+                <strong className="text-[#0A192F] uppercase">
+                  {confirmTarget.bookingRef}
+                </strong>{" "}
+                của khách{" "}
+                <strong className="text-[#0A192F] capitalize">
+                  {confirmTarget.guestName}
+                </strong>
+                ?
+              </>
+            }
+            confirmText="Đã Chuyển Tiền"
             isProcessing={isProcessing}
             onConfirm={executeConfirmRefund}
             onClose={() => setConfirmTarget(null)}

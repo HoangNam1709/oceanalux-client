@@ -8,6 +8,7 @@ import {
   Save,
   Edit,
   X,
+  Sparkles,
 } from "lucide-react";
 import { Pagination } from "./adminShared";
 
@@ -42,6 +43,13 @@ export function ScheduleManager({
     status: "upcoming",
   });
 
+  const [priceFactor, setPriceFactor] = useState<number>(1.0);
+  const [holidayId, setHolidayId] = useState<number | null>(null);
+  const [holidayInfo, setHolidayInfo] = useState<{
+    name: string;
+    multiplier: number;
+  } | null>(null);
+
   const todayStr = new Date().toLocaleDateString("en-CA");
 
   const calculateReturnDate = (depDateStr: string) => {
@@ -50,7 +58,40 @@ export function ScheduleManager({
     return returnDateObj.toLocaleDateString("en-CA");
   };
 
-  const handleAddDepartureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const checkHoliday = async (dateStr: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `http://localhost:8081/api/admin/check-holiday?date=${dateStr}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const data = await res.json();
+
+      if (data.is_holiday) {
+        setPriceFactor(data.suggested_multiplier);
+        setHolidayId(data.holiday_id);
+        setHolidayInfo({
+          name: data.holiday_name,
+          multiplier: data.suggested_multiplier,
+        });
+        toast.success(
+          `Phát hiện ${data.holiday_name}! Áp dụng hệ số x${data.suggested_multiplier}`,
+        );
+      } else {
+        setPriceFactor(1.0);
+        setHolidayId(null);
+        setHolidayInfo(null);
+      }
+    } catch (error) {
+      console.error("Lỗi kiểm tra ngày lễ:", error);
+    }
+  };
+
+  const handleAddDepartureChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const depDate = e.target.value;
     if (!depDate) return;
     setNewSchedule({
@@ -58,9 +99,11 @@ export function ScheduleManager({
       departure_date: depDate,
       return_date: calculateReturnDate(depDate),
     });
+    // Kích hoạt check ngày lễ
+    await checkHoliday(depDate);
   };
 
-  const handleEditDepartureChange = (
+  const handleEditDepartureChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const depDate = e.target.value;
@@ -70,9 +113,10 @@ export function ScheduleManager({
       departure_date: depDate,
       return_date: calculateReturnDate(depDate),
     });
+    // Kích hoạt check ngày lễ khi đổi ngày
+    await checkHoliday(depDate);
   };
 
-  // ================= API CALLS =================
   const handleAddSchedule = async () => {
     if (!newSchedule.departure_date) {
       toast.error("Vui lòng chọn ngày khởi hành!");
@@ -86,7 +130,12 @@ export function ScheduleManager({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ cruise_id: cruiseId, ...newSchedule }),
+        body: JSON.stringify({
+          cruise_id: cruiseId,
+          ...newSchedule,
+          price_factor: priceFactor,
+          holiday_id: holidayId,
+        }),
       });
       const data = await res.json();
 
@@ -104,6 +153,9 @@ export function ScheduleManager({
           return_date: "",
           status: "upcoming",
         });
+        setPriceFactor(1.0);
+        setHolidayId(null);
+        setHolidayInfo(null);
         const newItemIndex = updatedList.findIndex(
           (s) => s.id === data.data.id,
         );
@@ -129,7 +181,11 @@ export function ScheduleManager({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(editingSchedule),
+          body: JSON.stringify({
+            ...editingSchedule,
+            price_factor: priceFactor, // 🚀 Cập nhật Hệ số giá
+            holiday_id: holidayId,
+          }),
         },
       );
       const data = await res.json();
@@ -160,7 +216,7 @@ export function ScheduleManager({
     ).toLocaleDateString("vi-VN");
     if (
       !window.confirm(
-        `⚠️ Bạn có chắc muốn xóa lịch trình ngày ${depDateStr} không?`,
+        `Bạn có chắc muốn xóa lịch trình ngày ${depDateStr} không?`,
       )
     )
       return;
@@ -201,7 +257,6 @@ export function ScheduleManager({
     }
   };
 
-  // ================= GIAO DIỆN TỐI ƯU =================
   const totalPages = Math.ceil(schedules.length / itemsPerPage);
   const currentItems = schedules.slice(
     (currentPage - 1) * itemsPerPage,
@@ -218,7 +273,12 @@ export function ScheduleManager({
         </h3>
         {!isAdding && !editingSchedule && (
           <button
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              setIsAdding(true);
+              setPriceFactor(1.0);
+              setHolidayId(null);
+              setHolidayInfo(null);
+            }}
             className="flex items-center gap-2 bg-[#0A192F] text-[#D4AF37] px-4 py-2 rounded-xl hover:bg-slate-800 transition-colors text-sm font-bold shadow-sm"
           >
             <Plus className="w-4 h-4" /> Thêm lịch trình
@@ -284,11 +344,46 @@ export function ScheduleManager({
             </div>
           </div>
 
+          <div className="mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">
+              Hệ số giá (Dynamic Pricing)
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 border border-slate-200 rounded-lg shadow-sm w-40 focus-within:border-[#D4AF37] focus-within:ring-1 focus-within:ring-[#D4AF37]">
+                <span className="text-slate-400 font-bold text-lg">x</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.1"
+                  value={priceFactor}
+                  onChange={(e) =>
+                    setPriceFactor(parseFloat(e.target.value) || 1)
+                  }
+                  className="w-full text-lg font-bold text-[#0A192F] outline-none bg-transparent"
+                />
+              </div>
+
+              <div className="flex-1">
+                {holidayInfo ? (
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg border border-amber-200 w-fit">
+                    <Sparkles className="w-4 h-4" />
+                    {holidayInfo.name} (Gợi ý: x{holidayInfo.multiplier})
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-500 px-3 py-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                    Giá ngày thường (1.00)
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#D4AF37]/10 text-[#0A192F] p-3.5 rounded-lg text-xs font-medium mb-5 flex gap-2 border border-[#D4AF37]/20">
             <AlertCircle className="w-4 h-4 text-[#D4AF37] shrink-0" />
             <p>
-              Hệ thống sẽ tự động tính ngày về, quét các Hạng phòng của tàu và
-              mở kho phòng trống tương ứng.
+              Hệ thống sẽ tự động tính ngày về, quy đổi giá theo hệ số và mở kho
+              phòng trống tương ứng.
             </p>
           </div>
 
@@ -329,7 +424,6 @@ export function ScheduleManager({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
                 Ngày đi
               </label>
-              {/* SỬA LỖI Ở ĐÂY: Dùng substring(0, 10) để luôn lấy đúng YYYY-MM-DD */}
               <input
                 type="date"
                 value={
@@ -345,7 +439,6 @@ export function ScheduleManager({
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
                 Ngày về ({durationDays} ngày)
               </label>
-              {/* SỬA LỖI Ở ĐÂY */}
               <input
                 type="date"
                 disabled
@@ -375,6 +468,41 @@ export function ScheduleManager({
                 <option value="active">Đang chạy (Active)</option>
                 <option value="cancelled">Đã hủy (Cancelled)</option>
               </select>
+            </div>
+          </div>
+
+          <div className="mb-5 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">
+              Hệ số giá (Dynamic Pricing)
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-2 bg-white px-3 py-2 border border-slate-200 rounded-lg shadow-sm w-40 focus-within:border-[#0A192F] focus-within:ring-1 focus-within:ring-[#0A192F]">
+                <span className="text-slate-400 font-bold text-lg">x</span>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0.1"
+                  value={priceFactor}
+                  onChange={(e) =>
+                    setPriceFactor(parseFloat(e.target.value) || 1)
+                  }
+                  className="w-full text-lg font-bold text-[#0A192F] outline-none bg-transparent"
+                />
+              </div>
+
+              <div className="flex-1">
+                {holidayInfo ? (
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-700 bg-amber-100/50 px-3 py-2 rounded-lg border border-amber-200 w-fit">
+                    <Sparkles className="w-4 h-4" />
+                    {holidayInfo.name} (Gợi ý: x{holidayInfo.multiplier})
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-500 px-3 py-2">
+                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                    Giá ngày thường (1.00)
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -424,6 +552,9 @@ export function ScheduleManager({
                     Ngày Kết Thúc
                   </th>
                   <th className="py-3 px-2 font-bold text-center tracking-wider">
+                    Hệ số Giá
+                  </th>
+                  <th className="py-3 px-2 font-bold text-center tracking-wider">
                     Trạng Thái
                   </th>
                   <th className="py-3 px-2 font-bold text-right tracking-wider">
@@ -448,6 +579,15 @@ export function ScheduleManager({
                       )}
                     </td>
                     <td className="py-4 px-2 text-center">
+                      {parseFloat(schedule.price_factor) !== 1.0 ? (
+                        <span className="px-2 py-1 text-xs font-bold text-amber-700 bg-amber-100 rounded-md">
+                          x{parseFloat(schedule.price_factor)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-sm">-</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-2 text-center">
                       <span
                         className={`px-3 py-1 text-[10px] font-extrabold uppercase tracking-wide rounded-md ${
                           schedule.status === "upcoming"
@@ -466,6 +606,20 @@ export function ScheduleManager({
                       <button
                         onClick={() => {
                           setEditingSchedule(schedule);
+                          setPriceFactor(
+                            schedule.price_factor
+                              ? parseFloat(schedule.price_factor)
+                              : 1.0,
+                          );
+                          setHolidayId(schedule.holiday_id || null);
+                          setHolidayInfo(
+                            schedule.holiday_id
+                              ? {
+                                  name: "Giá đã tùy chỉnh",
+                                  multiplier: parseFloat(schedule.price_factor),
+                                }
+                              : null,
+                          );
                           setIsAdding(false);
                         }}
                         className="p-2 text-slate-400 group-hover:text-[#0A192F] group-hover:bg-[#D4AF37]/10 rounded-lg transition-colors"

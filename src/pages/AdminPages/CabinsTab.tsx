@@ -8,7 +8,7 @@ import {
   Trash2,
   Maximize,
   Layers,
-  Image as ImageIcon, 
+  Image as ImageIcon,
 } from "lucide-react";
 import { Cabin, Cruise, formatCurrency } from "./adminShared";
 
@@ -34,7 +34,6 @@ export function CabinsTab({
   setDeleteCabin,
   fetchData,
 }: Props) {
-
   const [galleryItem, setGalleryItem] = useState<Cabin | null>(null);
 
   return (
@@ -154,7 +153,7 @@ export function CabinsTab({
 
                   <button
                     onClick={() => setDeleteCabin(cabin)}
-                    className="p-2 bg-white text-slate-400 rounded-lg border border-slate-200 hover:border-red-500 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                    className="p-2 text-slate-400 hover:border-[#D4AF37] hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 rounded-md transition-colors ml-2"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -167,14 +166,14 @@ export function CabinsTab({
 
       <ImageGalleryModal
         isOpen={!!galleryItem}
-        onClose={() => setGalleryItem(null)} // Chỉ đóng khi người dùng nhấn dấu X
-        type="cabin" // RẤT QUAN TRỌNG: Gọi xuống Backend để lưu bảng cabin_images
+        onClose={() => setGalleryItem(null)}
+        type="cabin"
         itemId={galleryItem?.id || ""}
         itemName={`${galleryItem?.name || ""} - ${currentCruise?.name || ""}`}
         initialImages={galleryItem?.images_objects || []}
-        currentThumbnail={galleryItem?.imageUrl || ""} // Cabin dùng trường imageUrl
+        currentThumbnail={galleryItem?.imageUrl || ""}
         onUpdate={() => {
-          if (typeof fetchData === "function") fetchData(); // Reload ngầm
+          if (typeof fetchData === "function") fetchData();
         }}
       />
     </div>

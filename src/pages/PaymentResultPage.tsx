@@ -38,7 +38,6 @@ export function PaymentResultPage() {
       return;
     }
 
-    // Gửi toàn bộ tham số URL của VNPAY về cho Laravel xác thực và cập nhật DB
     axios
       .get(`http://localhost:8081/api/payment/verify?${queryString}`)
       .then((res) => {
