@@ -392,7 +392,7 @@ export function CheckoutPage() {
         setCabinData(
           res.data.data.cabin_classes.find((c: any) => c.id == cabinId),
         );
-        // 🚀 TÌM VÀ LƯU LỊCH TRÌNH ĐANG CHỌN ĐỂ LẤY HỆ SỐ GIÁ
+
         setScheduleData(
           res.data.data.schedules?.find((s: any) => s.id == scheduleId),
         );
